@@ -1,7 +1,7 @@
 {
-  "name": "bighub-mcp",
+  "name": "@bighub/bighub-mcp",
   "version": "0.1.0",
-  "description": "Official MCP server for BIGHUB governance APIs.",
+  "description": "MCP server for governing AI agent actions with the BIGHUB control plane.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -11,6 +11,9 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit",
@@ -18,11 +21,22 @@
     "start": "node dist/index.js",
     "test": "vitest run"
   },
+  "homepage": "https://bighub.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bighub-io/bighub.git",
+    "directory": "servers/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/bighub-io/bighub/issues"
+  },
   "keywords": [
     "bighub",
     "mcp",
+    "model-context-protocol",
     "governance",
-    "ai-agents"
+    "ai-agents",
+    "execution-control"
   ],
   "license": "MIT",
   "engines": {

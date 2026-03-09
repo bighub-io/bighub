@@ -1,8 +1,8 @@
-# bighub-openai
+# bighub-openai — Production-Safe OpenAI Agents
 
-> Production-safe OpenAI agents with execution governance.
+> OpenAI adapter for governing tool execution with the BIGHUB control plane.
 
-`bighub-openai` wraps the OpenAI Responses API with BIGHUB governance. Before any tool executes, BIGHUB validates it against your policies — and blocks or escalates if boundaries are exceeded.
+`bighub-openai` makes OpenAI tool-calling agents production-safe. Before any registered tool executes, the adapter validates the action against BIGHUB policies, enforces execution boundaries, and blocks or escalates risky decisions.
 
 ```text
 OpenAI Responses API  →  bighub-openai  →  BIGHUB Control Plane  →  execute / block / approve
@@ -47,6 +47,8 @@ print(response["execution"]["last"]["status"])
 # executed | blocked | approval_required
 ```
 
+`guard.tool(...)` auto-generates a strict JSON schema from your Python function signature. Provide `parameters_schema=...` only when you need custom schema constraints.
+
 ---
 
 ## How it works
@@ -58,8 +60,6 @@ For every tool call, the adapter:
 3. If `allowed` → executes the tool
 4. If `blocked` → does not execute, returns decision context
 5. If `requires_approval` → holds execution, returns `approval_required`
-
-Tool schema is auto-generated from your Python function signature — no manual JSON schema needed.
 
 ---
 
@@ -179,13 +179,8 @@ print(decision["allowed"], decision["risk_score"])
 
 ## Fail modes
 
-```python
-# Default: if policy check fails unexpectedly, block execution
-guard = GuardedOpenAI(..., fail_mode="closed")
-
-# Open: if policy check fails unexpectedly, allow execution
-guard = GuardedOpenAI(..., fail_mode="open")
-```
+- `fail_mode="closed"` (default) — if policy check fails unexpectedly, tool execution is blocked.
+- `fail_mode="open"` — if policy check fails unexpectedly, tool execution proceeds.
 
 ---
 
@@ -221,11 +216,25 @@ Memory ingest is best-effort: short timeout, exceptions swallowed, governance pa
 
 ---
 
+## Responses API compatibility
+
+This adapter is built specifically for the OpenAI Responses API (`client.responses.create`):
+
+- **Tool schema**: Uses flat `{type: "function", name, parameters, strict}` format.
+- **Multi-turn context**: Uses `previous_response_id` for efficient multi-turn loops.
+- **`store: false`**: Set by default. Override via `extra_create_args={"store": True}`.
+- **Output parsing**: Handles `response.output_text` natively with fallback extraction.
+- **Function calls**: Parses `function_call` items and ignores reasoning/message items safely.
+
+---
+
 ## Links
 
+- [bighub.io](https://bighub.io)
+- [GitHub — bighub-io/bighub](https://github.com/bighub-io/bighub)
 - [PyPI — bighub-openai](https://pypi.org/project/bighub-openai/)
 - [PyPI — bighub (core SDK)](https://pypi.org/project/bighub/)
-- [bighub.io](https://bighub.io)
+- [npm — @bighub/bighub-mcp](https://www.npmjs.com/package/@bighub/bighub-mcp)
 
 ---
 

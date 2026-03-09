@@ -1,10 +1,10 @@
-# BIGHUB
+# BIGHUB — AI Agent Control Plane
 
-> Execution governance for autonomous AI agents.
+> Official Python SDK for governing AI agent execution with the BIGHUB control plane.
 
-AI agents no longer just suggest — they act. They modify data, trigger payments, call external systems. When an agent acts outside its intended boundaries, the impact is immediate.
+BIGHUB is the execution control plane for AI agents in production. It sits between agent reasoning and real-world execution, validating every action against enforceable policies before it reaches production systems.
 
-BIGHUB sits between agent reasoning and real-world execution. Every action is validated against explicit policies before it runs.
+As AI agents move from suggestion to execution, risk becomes structural. BIGHUB makes autonomy enforceable.
 
 ```text
 LLM / Agent Runtime
@@ -71,7 +71,7 @@ asyncio.run(main())
 
 ---
 
-## What BIGHUB does
+## Why BIGHUB?
 
 | Without BIGHUB | With BIGHUB |
 |---|---|
@@ -84,21 +84,12 @@ asyncio.run(main())
 
 ## Core concepts
 
-**Domains** — Scope your policies by execution context:
-
-- `financial_actions`
-- `operational_systems`
-- `infrastructure_devops`
-- `customer_transactions`
-- `data_modifications`
-- `custom`
+**Execution domains** — Scope policies by context:
+`financial_actions`, `operational_systems`, `infrastructure_devops`, `customer_transactions`, `data_modifications`, `custom`.
 
 **Policy rules** — Define limits per domain: max value, max per day, approval threshold, behavioral constraints.
 
-**Decision outcomes** — Every submitted action returns:
-- `allowed: true/false`
-- `risk_score: 0.0–1.0`
-- `blocked_by` (if blocked)
+**Decision outcomes** — Every submitted action returns: `allowed`, `risk_score`, `blocked_by`.
 
 **Approvals** — Actions above defined thresholds are held for human review before execution.
 
@@ -131,7 +122,6 @@ rule = client.rules.create(
 BIGHUB learns from governed execution. Over time, it detects patterns and surfaces safe policy recommendations — without ever loosening autonomy automatically.
 
 ```python
-# Ingest governed execution events
 client.actions.ingest_memory(
     source="openai_adapter",
     actor="AI_AGENT_001",
@@ -147,7 +137,6 @@ client.actions.ingest_memory(
     ],
 )
 
-# Query learned context
 context = client.actions.memory_context(window_hours=24, tool="refund_payment")
 print(context["blocked_rate"], context["top_block_reasons"])
 ```
@@ -162,7 +151,6 @@ recommendations = client.actions.memory_recommendations(
     auto_apply=False,
 )
 
-# Preview then apply with optimistic locking
 rec = recommendations["recommendations"][0]
 preview = client.rules.apply_patch(rec["target_rule_id"], patch=rec["suggested_policy_patch"], preview=True)
 client.rules.apply_patch(rec["target_rule_id"], patch=rec["suggested_policy_patch"], preview=False, if_match_version=preview["after"]["version"])
@@ -207,6 +195,21 @@ client.webhooks.create({
 
 ---
 
+## Supported domains
+
+| Resource | Operations |
+|---|---|
+| **actions** | submit, submit_v2, dry_run, verify_validation, observer_stats, dashboard_summary, status, ingest_memory, memory_context, refresh_memory_aggregates, memory_recommendations |
+| **rules** | create, list, get, update, delete, pause, resume, apply_patch, dry_run, validate, validate_dry_run, domains, versions, purge_idempotency |
+| **approvals** | list, resolve |
+| **kill_switch** | status, activate, deactivate |
+| **events** | list, stats |
+| **api_keys** | create, list, delete/revoke, rotate, validate, scopes |
+| **webhooks** | create, list, get, update, delete, deliveries, test, list_events, verify_signature, replay_failed_delivery |
+| **auth** | signup, login, refresh, logout |
+
+---
+
 ## Reliability
 
 - Configurable timeout
@@ -220,35 +223,32 @@ client.webhooks.create({
 
 | Adapter | Status |
 |---|---|
-| `bighub-openai` | ✅ Available |
-| `bighub-anthropic` | 🔜 Coming soon |
-| `bighub-perplexity` | 🔜 Coming soon |
+| `bighub-openai` | Available |
+| `bighub-anthropic` | Coming soon |
+| `bighub-perplexity` | Coming soon |
 
 ```bash
 pip install bighub-openai
 ```
-
-→ See [bighub-openai on PyPI](https://pypi.org/project/bighub-openai/)
 
 ---
 
 ## Auth
 
 ```python
-# API key (recommended)
-client = BighubClient(api_key="...")
-
-# Bearer token
-client = BighubClient(bearer_token="...")
+client = BighubClient(api_key="...")       # X-API-Key (recommended)
+client = BighubClient(bearer_token="...")   # Authorization: Bearer
 ```
 
 ---
 
 ## Links
 
+- [bighub.io](https://bighub.io)
+- [GitHub — bighub-io/bighub](https://github.com/bighub-io/bighub)
 - [PyPI — bighub](https://pypi.org/project/bighub/)
 - [PyPI — bighub-openai](https://pypi.org/project/bighub-openai/)
-- [bighub.io](https://bighub.io)
+- [npm — @bighub/bighub-mcp](https://www.npmjs.com/package/@bighub/bighub-mcp)
 
 ---
 

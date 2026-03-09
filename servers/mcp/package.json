@@ -1,6 +1,7 @@
 {
   "name": "@bighub/bighub-mcp",
-  "version": "0.1.0",
+  "version": "0.1.4",
+  "mcpName": "io.bighub/mcp",
   "description": "MCP server for governing AI agent actions with the BIGHUB control plane.",
   "type": "module",
   "main": "dist/index.js",

@@ -1,0 +1,12 @@
+{
+  "name": "bighub-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for BIGHUB execution governance",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": ["bighub", "mcp", "governance"],
+  "license": "MIT"
+}

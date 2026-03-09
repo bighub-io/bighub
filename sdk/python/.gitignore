@@ -1,0 +1,14 @@
+# Build artifacts
+dist/
+*.egg-info/
+*.egg
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/

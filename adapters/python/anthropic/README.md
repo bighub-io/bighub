@@ -1,6 +1,6 @@
 # BIGHUB Anthropic Adapter (Python)
 
-Anthropic adapter to govern tool use with BIGHUB.
+Anthropic adapter — add decision intelligence to tool use with BIGHUB.
 
 **Status:** Coming soon.
 

@@ -1,6 +1,6 @@
-# Releasing the Official BIGHUB Python SDK
+# Releasing the BIGHUB Python SDK
 
-This document defines the release process for the official BIGHUB Python SDK.
+Release process for the official BIGHUB Python SDK — decision intelligence for autonomous AI agents.
 
 ## Versioning policy (SemVer)
 

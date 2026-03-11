@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "bighub-openai"
 version = "0.2.5"
-description = "OpenAI adapter for governing tool execution with BIGHUB."
+description = "OpenAI adapter for decision intelligence and self-improving rules with BIGHUB."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
   { name = "BIGHUB_CEO" }
 ]
-keywords = ["bighub", "openai", "ai-agents", "governance", "tool-calling"]
+keywords = ["bighub", "openai", "ai-agents", "decision-intelligence", "tool-calling"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

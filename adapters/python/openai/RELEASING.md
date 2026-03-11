@@ -1,6 +1,6 @@
 # Releasing `bighub-openai`
 
-This guide assumes you are releasing to PyPI manually.
+Release process for the BIGHUB OpenAI adapter — decision intelligence for OpenAI tool calls.
 
 ## Versioning policy (SemVer)
 

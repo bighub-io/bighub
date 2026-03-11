@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "bighub"
 version = "0.2.6"
-description = "Official Python SDK for governing AI agent execution with the BIGHUB intelligence and control layer."
+description = "Official Python SDK for decision intelligence and self-improving rules for AI agents with BIGHUB."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
   { name = "BIGHUB_CEO" }
 ]
-keywords = ["bighub", "ai-agents", "governance", "execution-control", "sdk"]
+keywords = ["bighub", "ai-agents", "decision-intelligence", "self-improving-rules", "sdk"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

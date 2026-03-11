@@ -1,8 +1,8 @@
 {
   "name": "@bighub/bighub-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "mcpName": "io.bighub/mcp",
-  "description": "MCP server for governing AI agent actions with the BIGHUB control plane.",
+  "description": "MCP server for decision intelligence and self-improving rules with BIGHUB.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -35,9 +35,9 @@
     "bighub",
     "mcp",
     "model-context-protocol",
-    "governance",
+    "decision-intelligence",
     "ai-agents",
-    "execution-control"
+    "self-improving-rules"
   ],
   "license": "MIT",
   "engines": {

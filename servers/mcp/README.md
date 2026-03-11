@@ -1,17 +1,17 @@
 # @bighub/bighub-mcp
 
-> MCP server for governing AI agent actions with the BIGHUB control plane.
+> MCP server for decision intelligence and self-improving rules with BIGHUB.
 
-Use BIGHUB governance from any [Model Context Protocol](https://modelcontextprotocol.io) client. This server exposes MCP tools that validate, bound, and govern AI agent execution by calling the BIGHUB API — actions, rules, approvals, kill switch, events, API keys, webhooks, auth, and Future Memory.
+Use BIGHUB from any [Model Context Protocol](https://modelcontextprotocol.io) client. This server exposes MCP tools that simulate, score, enforce, and learn from AI agent execution by calling the BIGHUB API — actions, rules, approvals, kill switch, events, API keys, webhooks, auth, and Future Memory.
 
 ```text
 MCP Client (Claude, Cursor, etc.)
         ↓
 @bighub/bighub-mcp  (stdio)
         ↓
-BIGHUB Control Plane API (api.bighub.io)
+BIGHUB Decision Intelligence API (api.bighub.io)
         ↓
-execute / block / require approval
+simulate → score → execute / block / approve
 ```
 
 ---
@@ -60,14 +60,14 @@ The server exposes MCP tools over stdio. Connect it to any MCP-compatible client
 
 ## What BIGHUB does
 
-BIGHUB is the execution control plane for AI agents in production. It sits between agent reasoning and real-world execution, validating every action against enforceable policies before it reaches production systems.
+BIGHUB simulates every agent action, learns from every decision, and makes your rules smarter over time. Every action is stress-tested across 100+ scenarios and scored for risk, fragility, and blast radius — before execution.
 
-| Without BIGHUB | With BIGHUB |
+| Guardrails | BIGHUB |
 |---|---|
-| Agent acts directly in production | Every action validated before execution |
-| Guardrails are suggestions | Policies are enforced at runtime |
-| Logging shows what happened | Decisions are blocked *before* they happen |
-| Autonomy grows, exposure grows | Bounded autonomy, controlled risk |
+| Block or allow | Simulate, score, enforce, and learn |
+| Static rules | Rules that improve from every decision |
+| No visibility into risk | Fragility, blast radius, and impact scored before execution |
+| Same policy forever | Future Memory detects patterns and recommends smarter policies |
 
 ---
 
@@ -92,14 +92,14 @@ BIGHUB is the execution control plane for AI agents in production. It sits betwe
 
 | Domain | Tools | Description |
 |--------|-------|-------------|
-| **Actions** | submit, submit_v2, dry_run, status, verify, stats, dashboard_summary | Validate and govern agent actions before execution. |
-| **Future Memory** | ingest, context, refresh_aggregates, recommendations | Ingest execution events, query learned context, surface policy recommendations. |
-| **Rules** | create, list, get, update, delete, pause, resume, validate, dry_run, versions, domains, apply_patch, purge_idempotency | Define and manage execution policies. |
+| **Actions** | submit, submit_v2, dry_run, status, verify, stats, dashboard_summary | Simulate, score, and enforce agent actions before execution. |
+| **Future Memory** | ingest, context, refresh_aggregates, recommendations | Ingest decisions, query learned patterns, surface self-improving policy recommendations. |
+| **Rules** | create, list, get, update, delete, pause, resume, validate, dry_run, versions, domains, apply_patch, purge_idempotency | Define and manage execution policies that improve over time. |
 | **Approvals** | list, resolve | Human-in-the-loop approval workflows. |
 | **Kill switch** | status, activate, deactivate | Emergency stop for all agent execution. |
-| **Events** | list, stats | Audit trail for governed decisions. |
+| **Events** | list, stats | Audit trail for scored decisions. |
 | **API keys** | create, list, delete, rotate, validate, scopes | Manage authentication credentials. |
-| **Webhooks** | create, list, get, update, delete, deliveries, test, list_events, verify_signature, replay | Export governed events to external systems. |
+| **Webhooks** | create, list, get, update, delete, deliveries, test, list_events, verify_signature, replay | Export decision events to external systems. |
 | **Auth** | signup, login, refresh, logout | Account and session management. |
 | **Fallback** | `bighub_http_request` | Generic tool for any BIGHUB endpoint not yet wrapped. |
 

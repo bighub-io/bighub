@@ -1,19 +1,17 @@
-# BIGHUB — AI Agent Control Plane
+# BIGHUB — Self-Improving Rules for AI Agents
 
-> Official Python SDK for governing AI agent execution with the BIGHUB control plane.
+> Official Python SDK for decision intelligence and self-improving rules.
 
-BIGHUB is the execution control plane for AI agents in production. It sits between agent reasoning and real-world execution, validating every action against enforceable policies before it reaches production systems.
-
-As AI agents move from suggestion to execution, risk becomes structural. BIGHUB makes autonomy enforceable.
+BIGHUB simulates every agent action, learns from every decision, and makes your rules smarter over time. Define your boundaries — BIGHUB enforces them, scores risk, and improves policies automatically.
 
 ```text
 LLM / Agent Runtime
         ↓
 Provider Adapter (e.g. bighub-openai)
         ↓
-BIGHUB Control Plane API
+BIGHUB Decision Intelligence API
         ↓
-Rules + Approvals + Memory + Policy Intelligence
+Simulate → Score → Enforce → Learn
         ↓
 execute / block / require approval
 ```
@@ -46,9 +44,12 @@ result = client.actions.submit(
 )
 
 print(result["allowed"], result["risk_score"])
-# True, 0.12
+print(result["simulation"]["fragility_score"])
+# True, 0.12, 0.22
 client.close()
 ```
+
+Every call returns a decision with risk scoring and simulation results — even on the free plan (100 scenarios).
 
 Async:
 
@@ -64,7 +65,7 @@ async def main():
             domain="financial_actions",
             actor="AI_AGENT_001",
         )
-        print(result["allowed"], result["risk_score"])
+        print(result["allowed"], result["simulation"])
 
 asyncio.run(main())
 ```
@@ -73,23 +74,26 @@ asyncio.run(main())
 
 ## Why BIGHUB?
 
-| Without BIGHUB | With BIGHUB |
+| Guardrails | BIGHUB |
 |---|---|
-| Agent acts directly in production | Every action validated before execution |
-| Guardrails are suggestions | Policies are enforced at runtime |
-| Logs show what happened | Decisions are blocked before they happen |
-| Autonomy grows, exposure grows | Bounded autonomy, controlled risk |
+| Block or allow | Simulate, score, enforce, and learn |
+| Static rules | Rules that improve from every decision |
+| No visibility into risk | Fragility, blast radius, and impact scored before execution |
+| Same policy forever | Future Memory detects patterns and recommends smarter policies |
+| One agent, one config | Scale across domains and agents with compounding intelligence |
 
 ---
 
 ## Core concepts
+
+**Decision simulation** — Every action is stress-tested across 100+ scenarios (1000+ on Pro). Risk, fragility, and blast radius are scored before execution.
 
 **Execution domains** — Scope policies by context:
 `financial_actions`, `operational_systems`, `infrastructure_devops`, `customer_transactions`, `data_modifications`, `custom`.
 
 **Policy rules** — Define limits per domain: max value, max per day, approval threshold, behavioral constraints.
 
-**Decision outcomes** — Every submitted action returns: `allowed`, `risk_score`, `blocked_by`.
+**Future Memory** — BIGHUB learns from every scored action. Patterns are detected, policies improve automatically, and your agents get smarter over time.
 
 **Approvals** — Actions above defined thresholds are held for human review before execution.
 
@@ -119,7 +123,7 @@ rule = client.rules.create(
 
 ## Future Memory
 
-BIGHUB learns from governed execution. Over time, it detects patterns and surfaces safe policy recommendations — without ever loosening autonomy automatically.
+BIGHUB learns from every scored action. Over time, it detects patterns and surfaces safe policy recommendations — without ever loosening autonomy automatically.
 
 ```python
 client.actions.ingest_memory(
@@ -195,7 +199,7 @@ client.webhooks.create({
 
 ---
 
-## Supported domains
+## Supported resources
 
 | Resource | Operations |
 |---|---|

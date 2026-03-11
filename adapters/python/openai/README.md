@@ -1,11 +1,11 @@
-# bighub-openai — Production-Safe OpenAI Agents
+# bighub-openai — Smarter OpenAI Agents
 
-> OpenAI adapter for governing tool execution with the BIGHUB control plane.
+> OpenAI adapter for decision intelligence and self-improving rules with BIGHUB.
 
-`bighub-openai` makes OpenAI tool-calling agents production-safe. Before any registered tool executes, the adapter validates the action against BIGHUB policies, enforces execution boundaries, and blocks or escalates risky decisions.
+`bighub-openai` makes every OpenAI tool call smarter. Before any registered tool executes, the adapter simulates the action, scores risk and fragility, enforces your boundaries, and learns from every decision to improve your rules over time.
 
 ```text
-OpenAI Responses API  →  bighub-openai  →  BIGHUB Control Plane  →  execute / block / approve
+OpenAI Responses API  →  bighub-openai  →  BIGHUB  →  simulate → score → execute / block / approve
 ```
 
 ---
@@ -56,10 +56,12 @@ print(response["execution"]["last"]["status"])
 For every tool call, the adapter:
 
 1. Intercepts the tool call before execution
-2. Submits the action to BIGHUB for policy validation
+2. Simulates the action across 100+ scenarios and scores risk, fragility, and blast radius
 3. If `allowed` → executes the tool
 4. If `blocked` → does not execute, returns decision context
 5. If `requires_approval` → holds execution, returns `approval_required`
+
+Every decision feeds back into Future Memory — making your rules smarter over time.
 
 ---
 
@@ -76,6 +78,11 @@ For every tool call, the adapter:
       "decision": {
         "allowed": True,
         "risk_score": 0.21,
+        "simulation": {
+          "scenarios_run": 100,
+          "fragility_score": 0.18,
+          "confidence": 0.82
+        }
       }
     }
   }
@@ -94,7 +101,7 @@ for event in guard.run_stream(
     if event["type"] == "llm_delta":
         print(event["delta"], end="")
     elif event["type"] == "execution_event":
-        print("\n[governance]", event["event"]["tool"], event["event"]["status"])
+        print("\n[decision]", event["event"]["tool"], event["event"]["status"])
     elif event["type"] == "final_response":
         print("\nDone:", event["response"]["output_text"])
 ```
@@ -103,7 +110,7 @@ for event in guard.run_stream(
 |---|---|
 | `llm_delta` | Incremental text token |
 | `llm_text_done` | Complete text segment |
-| `execution_event` | Governed tool decision/result |
+| `execution_event` | Scored tool decision/result |
 | `final_response` | Final payload (same shape as `run()`) |
 | `response_done` | Response finished |
 | `response_failed` | Response error |
@@ -151,7 +158,7 @@ result = guard.run_with_approval(
 
 ## Audit hook
 
-Forward every governed decision to your observability stack:
+Forward every scored decision to your observability stack:
 
 ```python
 def log_decision(event: dict) -> None:
@@ -168,7 +175,7 @@ guard = GuardedOpenAI(..., on_decision=log_decision)
 
 ## Silent mode
 
-Evaluate governance without executing tools:
+Evaluate decisions without executing tools:
 
 ```python
 decision = guard.check_tool("refund_payment", {"order_id": "ord_123", "amount": 199.0})
@@ -204,13 +211,13 @@ Retries only trigger on transient OpenAI errors (`APIConnectionError`, `APITimeo
 
 ## Future Memory
 
-The adapter ingests governed execution events into BIGHUB Future Memory by default — powering pattern detection and policy recommendations over time.
+The adapter ingests every scored decision into BIGHUB Future Memory — powering pattern detection and self-improving policy recommendations over time.
 
 ```python
 guard = GuardedOpenAI(..., memory_enabled=True)
 ```
 
-Memory ingest is best-effort: short timeout, exceptions swallowed, governance path never blocked by telemetry.
+Memory ingest is best-effort: short timeout, exceptions swallowed, decision path never blocked by telemetry.
 
 > Future Memory is experimental and may contain bugs.
 

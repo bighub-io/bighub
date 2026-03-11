@@ -1,8 +1,10 @@
 # Changelog
 
-## [0.2.5] - 2026-03-08
+## [0.2.5] - 2026-03-09
 
 ### Changed
+- Aligned all documentation with decision intelligence positioning (simulate, score, enforce, learn).
+- Updated PyPI description and keywords to reflect self-improving rules branding.
 - Synced package version and runtime version constant to `0.2.5`.
 - Refactored shared guarded-client initialization to reduce sync/async duplication and keep config validation consistent.
 - Made retryable provider error handling explicit and safer by removing the broad fallback that could retry non-retryable exceptions.
@@ -50,4 +52,4 @@
 
 ## [0.1.0] - 2026-02-15
 
-Initial release with basic tool governance via `GuardedOpenAI.run()`.
+Initial release with decision intelligence for tools via `GuardedOpenAI.run()`.

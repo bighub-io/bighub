@@ -8,10 +8,12 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 - No unreleased entries at this time.
 
-## [0.2.6] - 2026-03-08
+## [0.2.6] - 2026-03-09
 
 ### Changed
 
+- Aligned all documentation with decision intelligence positioning (simulate, score, enforce, learn).
+- Updated PyPI description and keywords to reflect self-improving rules branding.
 - Synced package version and runtime version constant to `0.2.6` so user-agent and metadata always match.
 - Removed duplicated `JSONDict` alias from models and kept a single source of truth in `types.py`.
 - Added explicit sync/async transport protocols and replaced `transport: Any` in resource APIs for stronger typing.
@@ -42,7 +44,7 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
   - `marketing` -> `data_modifications`
   - `generic` -> `custom`
 - Updated README examples and snippets to consistently use current domain values and production vocabulary.
-- Documentation polish for release readiness (event/domain wording), while keeping the control-plane positioning.
+- Documentation polish for release readiness (event/domain wording), aligned with decision intelligence positioning.
 
 ## [0.2.1] - 2026-02-28
 
@@ -78,7 +80,7 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
   - `rule.patch_applied`
   - `decision_event.created`
   - approval lifecycle events.
-- Documentation refresh aligned with control-plane positioning:
+- Documentation refresh aligned with decision intelligence positioning:
   - Architecture section
   - Policy Intelligence section
   - Provider Adapters section

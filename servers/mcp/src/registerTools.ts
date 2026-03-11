@@ -163,7 +163,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_memory_ingest",
     {
-      description: "Ingest governed execution events into Future Memory.",
+      description: "Ingest scored execution events into Future Memory.",
       inputSchema: {
         events: z.array(JsonObjectSchema),
         source: z.string().default("adapter"),
@@ -272,7 +272,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_rules_create",
     {
-      description: "Create a governance rule.",
+      description: "Create a policy rule.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         payload: JsonObjectSchema,
@@ -293,7 +293,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_rules_list",
     {
-      description: "List governance rules.",
+      description: "List policy rules.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         status: z.string().optional(),

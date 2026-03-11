@@ -1,19 +1,19 @@
 # BIGHUB
 
-> Control plane for AI agent actions.
+> Self-improving rules for AI agents.
 
-Validate, bound, and govern every autonomous AI agent decision before it acts — making autonomy safe, intelligent, and ready for production.
+Define your boundaries. BIGHUB simulates every action, learns from every decision, and makes your rules smarter over time.
 
-BIGHUB sits between AI reasoning and real-world execution. Agents can plan and decide, but real-world actions execute only within your defined limits.
+Every agent action is stress-tested across 100+ scenarios and scored for risk, fragility, and blast radius — before execution. Patterns are detected, policies improve automatically, and your agents get smarter over time.
 
 ```text
 LLM / Agent Runtime
         ↓
 Provider Adapter (e.g. bighub-openai)
         ↓
-BIGHUB Control Plane API
+BIGHUB Decision Intelligence API
         ↓
-Rules + Approvals + Memory + Policy Intelligence
+Simulate → Score → Enforce → Learn
         ↓
 execute / block / require approval
 ```
@@ -25,8 +25,8 @@ execute / block / require approval
 | Package | Language | Install | Description |
 |---------|----------|---------|-------------|
 | **[bighub](sdk/python/)** | Python | `pip install bighub` | Core SDK — actions, rules, approvals, kill switch, webhooks, API keys, Future Memory. |
-| **[bighub-openai](adapters/python/openai/)** | Python | `pip install bighub-openai` | OpenAI Responses API adapter — govern tool/function calls with BIGHUB policies. |
-| **[@bighub/bighub-mcp](servers/mcp/)** | TypeScript | `npm install @bighub/bighub-mcp` | MCP server — use BIGHUB governance from any Model Context Protocol client. |
+| **[bighub-openai](adapters/python/openai/)** | Python | `pip install bighub-openai` | OpenAI Responses API adapter — simulate and score tool/function calls with decision intelligence. |
+| **[@bighub/bighub-mcp](servers/mcp/)** | TypeScript | `npm install @bighub/bighub-mcp` | MCP server — use BIGHUB decision intelligence from any Model Context Protocol client. |
 | bighub-anthropic | Python | — | Anthropic adapter — *coming soon*. |
 | bighub-openai (JS) | TypeScript | — | OpenAI adapter for Node.js — *coming soon*. |
 
@@ -34,12 +34,13 @@ execute / block / require approval
 
 ## Why BIGHUB?
 
-| Without BIGHUB | With BIGHUB |
+| Guardrails | BIGHUB |
 |---|---|
-| Agent acts directly in production | Every action validated before execution |
-| Guardrails are suggestions | Policies are enforced at runtime |
-| Logging shows what happened | Decisions are blocked *before* they happen |
-| Autonomy grows, exposure grows | Bounded autonomy, controlled risk |
+| Block or allow | Simulate, score, enforce, and learn |
+| Static rules | Rules that improve from every decision |
+| No visibility into risk | Fragility, blast radius, and impact scored before execution |
+| Same policy forever | Future Memory detects patterns and recommends smarter policies |
+| One agent, one config | Scale across domains and agents with compounding intelligence |
 
 ---
 
@@ -63,8 +64,11 @@ result = client.actions.submit(
 )
 
 print(result["allowed"], result["risk_score"])
+print(result["simulation"]["fragility_score"])
 client.close()
 ```
+
+Every call returns a decision with risk scoring and simulation results — even on the free plan (100 scenarios).
 
 ---
 

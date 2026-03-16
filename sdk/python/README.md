@@ -1,248 +1,397 @@
-# BIGHUB — Self-Improving Rules for AI Agents
+# BIGHUB Python SDK
 
-> Official Python SDK for decision intelligence and self-improving rules.
+> Evaluate agent actions, report real outcomes, and improve future decisions from experience.
 
-BIGHUB simulates every agent action, learns from every decision, and makes your rules smarter over time. Define your boundaries — BIGHUB enforces them, scores risk, and improves policies automatically.
+The BIGHUB Python SDK helps you turn agent actions into reusable decision cases.
 
-```text
-LLM / Agent Runtime
-        ↓
-Provider Adapter (e.g. bighub-openai)
-        ↓
-BIGHUB Decision Intelligence API
-        ↓
-Simulate → Score → Enforce → Learn
-        ↓
-execute / block / require approval
-```
+Use it to:
 
----
-
-## Install
+- evaluate actions before they run
+- report what actually happened after execution
+- retrieve similar past cases
+- compare prediction vs reality
+- improve how future actions are judged
 
 ```bash
 pip install bighub
 ```
 
-Requires Python 3.9+.
+Python 3.9+. Single dependency: `httpx`.
 
 ---
 
-## Quickstart
+## Quick Start
 
 ```python
-import os
 from bighub import BighubClient
 
-client = BighubClient(api_key=os.getenv("BIGHUB_API_KEY"))
+client = BighubClient(api_key="your_api_key")
 
+# 1. Evaluate an action before execution
 result = client.actions.submit(
-    action="update_price",
-    value=150.0,
-    domain="financial_actions",
-    actor="AI_AGENT_001",
+    action="refund_full",
+    value=450.0,
+    domain="customer_transactions",
+    target="order_12345",
+    actor="refund_agent",
 )
 
-print(result["allowed"], result["risk_score"])
-print(result["simulation"]["fragility_score"])
-# True, 0.12, 0.22
+if result["allowed"]:
+    execute_refund()  # your logic
+
+    # 2. Report what actually happened
+    client.outcomes.report(
+        request_id=result["request_id"],
+        status="SUCCESS",
+        description="Refund processed, customer retained",
+    )
+else:
+    print(result["reason"])
+
 client.close()
 ```
 
-Every call returns a decision with risk scoring and simulation results — even on the free plan (100 scenarios).
+That is the core loop:
 
-Async:
+**evaluate -> execute -> report outcome -> learn**
+
+Use `client.actions.submit(...)` as the default entry point in Free BETA.
+In product wording, treat this as: **submit for evaluation**.
+
+---
+
+## What This SDK Is For
+
+BIGHUB is useful when agent actions can create real operational consequences, for example:
+
+- refunds
+- pricing changes
+- CRM updates
+- workflow execution
+- infrastructure actions
+- internal operations with approval thresholds
+
+Instead of treating each action like the first time, BIGHUB lets future actions benefit from:
+
+- real outcomes
+- similar past cases
+- calibration between prediction and reality
+- learned advisories and risk patterns
+
+---
+
+## Core Loop
+
+### 1) Evaluate an action
 
 ```python
-import asyncio, os
+result = client.actions.submit(
+    action="increase_price",
+    value=15.0,
+    domain="customer_transactions",
+    target="sku_789",
+)
+
+print(result["risk_score"])   # 0.42
+print(result["warnings"])     # ["Similar actions caused margin drops"]
+print(result["allowed"])      # True
+```
+
+### 2) Execute if allowed
+
+```python
+if result["allowed"]:
+    apply_price_change()
+```
+
+### 3) Report the real outcome
+
+```python
+client.outcomes.report(
+    request_id=result["request_id"],
+    status="CHURN",
+    description="Conversion dropped 12% after price increase",
+    revenue_impact=-3200.0,
+)
+```
+
+### 4) Reuse what was learned
+
+```python
+precedents = client.precedents.query(
+    domain="customer_transactions",
+    action="increase_price",
+    risk_score=0.42,
+)
+
+print(precedents["total_precedents"])
+print(precedents["outcomes"])
+```
+
+---
+
+## Core Resources
+
+### Core loop
+
+| Resource | Purpose |
+|---|---|
+| `client.actions` | Evaluate actions before they run |
+| `client.outcomes` | Report and query real outcomes |
+| `client.cases` | Create and manage DecisionCases |
+
+### Learning signals
+
+| Resource | Purpose |
+|---|---|
+| `client.precedents` | Retrieve similar past cases |
+| `client.retrieval` | Aggregate multi-signal precedent retrieval |
+| `client.calibration` | Compare prediction vs reality |
+| `client.insights` | Retrieve learned advisories and risk patterns |
+| `client.simulations` | Inspect simulation snapshots and accuracy |
+
+## Decision Cases
+
+A DecisionCase is the unit BIGHUB uses to connect:
+
+- the proposed action
+- the context around it
+- the decision made before execution
+- the real outcome observed later
+
+Create and manage a decision case directly:
+
+```python
+case = client.cases.create(
+    domain="customer_transactions",
+    action={"tool": "refund_full", "action": "refund_full", "value": 900.0},
+    verdict={"verdict": "ALLOWED", "risk_score": 0.35, "confidence": 0.86},
+    context={"axes": {"reversibility": 0.9}, "risk_score": 0.35},
+    goal_summary="Customer requested refund for delayed order",
+    trigger_source="support_ticket",
+)
+
+client.cases.report_outcome(
+    case["case_id"],
+    status="FRAUD",
+    description="Fraudulent refund detected 3 days later",
+    correction_needed=True,
+    revenue_impact=-900.0,
+)
+```
+
+Query cases with outcomes:
+
+```python
+cases = client.cases.list(
+    domain="customer_transactions",
+    has_outcome=True,
+    min_risk_score=0.3,
+    limit=20,
+)
+```
+
+---
+
+## Precedents And Learned Signals
+
+Before or after a decision, you can inspect what BIGHUB has learned from similar past cases.
+
+### Query precedents
+
+```python
+precedents = client.precedents.query(
+    domain="customer_transactions",
+    action="refund_full",
+    risk_score=0.35,
+)
+
+print(precedents["total_precedents"])
+print(precedents["outcomes"])
+```
+
+### Check calibration
+
+```python
+cal = client.calibration.report(domain="customer_transactions")
+print(cal["calibration_quality"])
+print(cal["bias_direction"])
+```
+
+### Retrieve advisories
+
+```python
+advice = client.insights.advise(
+    tool="increase_price",
+    action="increase_price",
+    domain="customer_transactions",
+)
+
+print(advice["advisories"])
+```
+
+These signals help future actions get judged with more experience.
+
+---
+
+## More Resources
+
+Use these when you need deeper platform operations beyond the core loop above.
+
+### Runtime ingestion
+
+Use ingestion endpoints when you want to route structured runtime data into BIGHUB.
+
+```python
+client.ingest.event(
+    event_type="ACTION_EXECUTED",
+    request_id="req_abc123",
+    domain="customer_transactions",
+    action={"tool": "refund_full", "arguments": {"amount": 450}},
+    execution={"executed": True, "status_code": 200},
+)
+
+client.ingest.reconcile(
+    key_name="request_id",
+    key_value="req_abc123",
+    outcome={
+        "event_type": "OUTCOME_OBSERVED",
+        "outcome": {"status": "SUCCESS", "description": "Charge completed"},
+    },
+)
+
+stats = client.ingest.stats()
+```
+
+Useful for:
+
+- existing agent runtimes
+- workflow engines
+- delayed outcome reporting
+- reconciliation after execution
+
+---
+
+### Simulations
+
+Inspect prediction vs reality for a specific decision or domain.
+
+```python
+comparison = client.simulations.compare(request_id="req_abc123")
+print(comparison["predicted_risk"])
+print(comparison["actual_outcome"])
+print(comparison["calibration_error"])
+
+accuracy = client.simulations.accuracy(domain="customer_transactions")
+```
+
+Simulation data becomes more useful when paired with real outcomes.
+
+---
+
+### Learning controls
+
+Trigger recomputation of learning artifacts when needed.
+
+```python
+job = client.learning.recompute(domain="customer_transactions", async_mode=True)
+print(job["job_id"])
+
+strategy = client.learning.strategy()
+print(strategy["strategy_version"])
+```
+
+Useful for:
+
+- backfills
+- strategy upgrades
+- replay experiments
+- offline learning refresh
+
+---
+
+### Async client
+
+All major SDK operations are available asynchronously.
+
+```python
 from bighub import AsyncBighubClient
 
-async def main():
-    async with AsyncBighubClient(api_key=os.getenv("BIGHUB_API_KEY")) as client:
-        result = await client.actions.submit(
-            action="update_price",
-            value=150.0,
-            domain="financial_actions",
-            actor="AI_AGENT_001",
-        )
-        print(result["allowed"], result["simulation"])
-
-asyncio.run(main())
-```
-
----
-
-## Why BIGHUB?
-
-| Guardrails | BIGHUB |
-|---|---|
-| Block or allow | Simulate, score, enforce, and learn |
-| Static rules | Rules that improve from every decision |
-| No visibility into risk | Fragility, blast radius, and impact scored before execution |
-| Same policy forever | Future Memory detects patterns and recommends smarter policies |
-| One agent, one config | Scale across domains and agents with compounding intelligence |
-
----
-
-## Core concepts
-
-**Decision simulation** — Every action is stress-tested across 100+ scenarios (1000+ on Pro). Risk, fragility, and blast radius are scored before execution.
-
-**Execution domains** — Scope policies by context:
-`financial_actions`, `operational_systems`, `infrastructure_devops`, `customer_transactions`, `data_modifications`, `custom`.
-
-**Policy rules** — Define limits per domain: max value, max per day, approval threshold, behavioral constraints.
-
-**Future Memory** — BIGHUB learns from every scored action. Patterns are detected, policies improve automatically, and your agents get smarter over time.
-
-**Approvals** — Actions above defined thresholds are held for human review before execution.
-
-**Kill switch** — Instantly stop all agent execution, globally or per domain.
-
----
-
-## Policy rules
-
-```python
-from bighub import BighubClient, RuleCreateModel
-
-client = BighubClient(api_key=os.getenv("BIGHUB_API_KEY"))
-
-rule = client.rules.create(
-    RuleCreateModel(
-        name="Pricing Safety Rule",
-        domain="financial_actions",
-        max_per_day=100,
-        max_value=1000,
-        require_approval_above=500,
+async with AsyncBighubClient(api_key="your_api_key") as client:
+    result = await client.actions.submit(
+        action="refund_full",
+        value=450.0,
+        domain="customer_transactions",
     )
-)
+
+    if result["allowed"]:
+        await execute_refund()
+        await client.outcomes.report(
+            request_id=result["request_id"],
+            status="SUCCESS",
+        )
 ```
 
 ---
 
-## Future Memory
-
-BIGHUB learns from every scored action. Over time, it detects patterns and surfaces safe policy recommendations — without ever loosening autonomy automatically.
+### Auth
 
 ```python
-client.actions.ingest_memory(
-    source="openai_adapter",
-    actor="AI_AGENT_001",
-    domain="customer_transactions",
-    events=[
-        {
-            "event_id": "6f1aa3f4-...",
-            "tool": "refund_payment",
-            "status": "blocked",
-            "decision": {"allowed": False, "blocked_by": "max_value", "risk_score": 0.91},
-            "arguments": {"order_id": "ord_123", "amount": 2500.0},
-        }
-    ],
-)
+from bighub import BighubClient
 
-context = client.actions.memory_context(window_hours=24, tool="refund_payment")
-print(context["blocked_rate"], context["top_block_reasons"])
+# API key, recommended for agents and backend services
+client = BighubClient(api_key="bh_live_xxx")
+
+# Bearer token, useful for user sessions
+client = BighubClient(bearer_token="eyJhbG...")
 ```
 
-Policy recommendations (Pro/Enterprise):
+---
+
+### Error handling
 
 ```python
-recommendations = client.actions.memory_recommendations(
-    window_hours=24,
-    scope={"domain": "customer_transactions", "tool": "refund_payment"},
-    min_events=20,
-    auto_apply=False,
-)
+from bighub import BighubAPIError, BighubAuthError
 
-rec = recommendations["recommendations"][0]
-preview = client.rules.apply_patch(rec["target_rule_id"], patch=rec["suggested_policy_patch"], preview=True)
-client.rules.apply_patch(rec["target_rule_id"], patch=rec["suggested_policy_patch"], preview=False, if_match_version=preview["after"]["version"])
+try:
+    result = client.actions.submit(action="update_price", value=500)
+except BighubAuthError:
+    print("Invalid API key")
+except BighubAPIError as e:
+    print(e.status_code, e.message, e.request_id)
 ```
 
-> Future Memory is experimental and may contain bugs.
+All API errors include `request_id` for tracing.
 
 ---
 
-## Approvals
+### Reliability
 
-```python
-pending = client.approvals.list(status_filter="pending")
+Built-in reliability features include:
 
-client.approvals.resolve(
-    pending[0]["request_id"],
-    resolution="approved",
-    comment="approved by on-call",
-)
-```
+- automatic retries on 408, 429, and 5xx responses
+- configurable timeout, default 15s
+- idempotency key support on write operations
+- context manager support for clean resource cleanup
 
 ---
 
-## Kill switch
+## Free Beta
 
-```python
-client.kill_switch.activate()   # stop everything
-client.kill_switch.deactivate() # resume
-```
+Current active plan:
 
----
+- 3 agents
+- 2,500 actions / month
+- 30 days history
+- 1 environment
 
-## Webhooks
-
-```python
-client.webhooks.create({
-    "url": "https://yourapp.com/webhooks/bighub",
-    "label": "prod-endpoint",
-    "events": ["decision_event.created", "approval.created"],
-})
-```
+The current goal is to make the full decision loop easy to test with real agent actions and real outcomes.
 
 ---
 
-## Supported resources
+## One-Liner
 
-| Resource | Operations |
-|---|---|
-| **actions** | submit, submit_v2, dry_run, verify_validation, observer_stats, dashboard_summary, status, ingest_memory, memory_context, refresh_memory_aggregates, memory_recommendations |
-| **rules** | create, list, get, update, delete, pause, resume, apply_patch, dry_run, validate, validate_dry_run, domains, versions, purge_idempotency |
-| **approvals** | list, resolve |
-| **kill_switch** | status, activate, deactivate |
-| **events** | list, stats |
-| **api_keys** | create, list, delete/revoke, rotate, validate, scopes |
-| **webhooks** | create, list, get, update, delete, deliveries, test, list_events, verify_signature, replay_failed_delivery |
-| **auth** | signup, login, refresh, logout |
-
----
-
-## Reliability
-
-- Configurable timeout
-- Retry with exponential backoff (429 / 5xx / network errors)
-- Idempotency-Key support on mutable endpoints
-- Typed exception hierarchy with request/response metadata
-
----
-
-## Provider adapters
-
-| Adapter | Status |
-|---|---|
-| `bighub-openai` | Available |
-| `bighub-anthropic` | Coming soon |
-| `bighub-perplexity` | Coming soon |
-
-```bash
-pip install bighub-openai
-```
-
----
-
-## Auth
-
-```python
-client = BighubClient(api_key="...")       # X-API-Key (recommended)
-client = BighubClient(bearer_token="...")   # Authorization: Bearer
-```
+BIGHUB helps agent actions get judged with more experience over time.
 
 ---
 
@@ -250,8 +399,8 @@ client = BighubClient(bearer_token="...")   # Authorization: Bearer
 
 - [bighub.io](https://bighub.io)
 - [GitHub — bighub-io/bighub](https://github.com/bighub-io/bighub)
-- [PyPI — bighub](https://pypi.org/project/bighub/)
 - [PyPI — bighub-openai](https://pypi.org/project/bighub-openai/)
+- [PyPI — bighub (core SDK)](https://pypi.org/project/bighub/)
 - [npm — @bighub/bighub-mcp](https://www.npmjs.com/package/@bighub/bighub-mcp)
 
 ---

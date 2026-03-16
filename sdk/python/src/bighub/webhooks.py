@@ -16,7 +16,7 @@ def verify_chronos_signature(
     tolerance_seconds: int = 300,
 ) -> bool:
     """
-    Verify BIGHUB/Chronos webhook signature header format:
+    Verify BIGHUB webhook signature header format:
     v1=HMAC_SHA256(secret, "{timestamp}.{payload}")
     """
     now = int(time.time())

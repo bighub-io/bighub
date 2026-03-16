@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import httpx
 import pytest
 
@@ -114,4 +115,44 @@ async def test_async_auth_events_approvals_paths() -> None:
     assert login["access_token"] == "a_async"
     assert stats["today"]["blocked"] == 1
     assert resolved["status"] == "denied"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_async_contract_aliases_for_actions_retrieval_and_ingest_reconcile() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/actions/submit" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["context"] == {"order_id": "ord_async"}
+            assert "metadata" not in payload
+            return httpx.Response(200, json={"allowed": True})
+        if request.url.path == "/retrieval/query/explained" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["strategy"] == "balanced"
+            return httpx.Response(200, json={"status": "ok"})
+        if request.url.path == "/ingest/reconcile" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["key_name"] == "request_id"
+            assert payload["key_value"] == "req_async"
+            assert payload["outcome"]["event_type"] == "OUTCOME_OBSERVED"
+            return httpx.Response(200, json={"status": "reconciled"})
+        raise AssertionError(f"Unexpected {request.method} {request.url.path}")
+
+    client = AsyncBighubClient(api_key="bhk_test")
+    client._transport._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    submit = await client.actions.submit(action="refund_full", metadata={"order_id": "ord_async"})
+    retrieval = await client.retrieval.query_explained(
+        domain="customer_transactions",
+        action="refund_full",
+        strategy="balanced",
+    )
+    reconcile = await client.ingest.reconcile(
+        request_id="req_async",
+        outcome={"event_type": "OUTCOME_OBSERVED", "outcome": {"status": "SUCCESS"}},
+    )
+
+    assert submit["allowed"] is True
+    assert retrieval["status"] == "ok"
+    assert reconcile["status"] == "reconciled"
     await client.close()

@@ -8,13 +8,13 @@ from ..types import (
     ActionSubmitRequest,
     ActionSubmitResponse,
     ActionSubmitV2Request,
-    FutureMemoryEvent,
+    DecisionMemoryEvent,
     JSONDict,
 )
 
 
 class ActionsAPI:
-    """Sync API for action validation and decision intelligence endpoints."""
+    """Sync API for action evaluation and decision learning endpoints."""
 
     def __init__(self, transport: SyncTransportProtocol) -> None:
         self._transport = transport
@@ -27,10 +27,11 @@ class ActionsAPI:
         target: Optional[str] = None,
         actor: str = "AI_AGENT",
         domain: Optional[str] = None,
+        context: Optional[JSONDict] = None,
         metadata: Optional[JSONDict] = None,
         idempotency_key: Optional[str] = None,
     ) -> ActionSubmitResponse:
-        """Validate an action via `/actions/submit`."""
+        """Evaluate an action via `/actions/submit`."""
         payload: ActionSubmitRequest = {"action": action, "actor": actor}
         if value is not None:
             payload["value"] = value
@@ -38,14 +39,18 @@ class ActionsAPI:
             payload["target"] = target
         if domain is not None:
             payload["domain"] = domain
-        if metadata:
-            payload["metadata"] = metadata
+        if context is not None:
+            payload["context"] = context
+        elif metadata is not None:
+            payload["context"] = metadata
         return self._transport.request(
             method="POST",
             path="/actions/submit",
             json_body=payload,
             idempotency_key=idempotency_key,
         )
+
+    evaluate = submit
 
     @overload
     def submit_v2(self, *, payload: ActionSubmitV2Request, idempotency_key: Optional[str] = None) -> JSONDict:
@@ -61,11 +66,14 @@ class ActionsAPI:
         payload: ActionSubmitV2Request | ActionSubmitV2Model,
         idempotency_key: Optional[str] = None,
     ) -> JSONDict:
-        """Validate with Pro decision intelligence via `/actions/submit/v2`."""
+        """Evaluate action via `/actions/submit/v2`."""
+        body = to_payload(payload)
+        if "context" not in body and "metadata" in body:
+            body["context"] = body["metadata"]
         return self._transport.request(
             method="POST",
             path="/actions/submit/v2",
-            json_body=to_payload(payload),
+            json_body=body,
             idempotency_key=idempotency_key,
         )
 
@@ -83,11 +91,14 @@ class ActionsAPI:
         payload: ActionSubmitV2Request | ActionSubmitV2Model,
         idempotency_key: Optional[str] = None,
     ) -> JSONDict:
-        """Run a non-persistent validation via `/actions/submit/dry-run`."""
+        """Run a non-persistent evaluation via `/actions/submit/dry-run`."""
+        body = to_payload(payload)
+        if "context" not in body and "metadata" in body:
+            body["context"] = body["metadata"]
         return self._transport.request(
             method="POST",
             path="/actions/submit/dry-run",
-            json_body=to_payload(payload),
+            json_body=body,
             idempotency_key=idempotency_key,
         )
 
@@ -109,7 +120,7 @@ class ActionsAPI:
     def ingest_memory(
         self,
         *,
-        events: list[FutureMemoryEvent],
+        events: list[DecisionMemoryEvent],
         source: str = "adapter",
         source_version: Optional[str] = None,
         actor: Optional[str] = None,
@@ -215,7 +226,7 @@ class ActionsAPI:
 
 
 class AsyncActionsAPI:
-    """Async API for action validation and decision intelligence endpoints."""
+    """Async API for action evaluation and decision learning endpoints."""
 
     def __init__(self, transport: AsyncTransportProtocol) -> None:
         self._transport = transport
@@ -228,10 +239,11 @@ class AsyncActionsAPI:
         target: Optional[str] = None,
         actor: str = "AI_AGENT",
         domain: Optional[str] = None,
+        context: Optional[JSONDict] = None,
         metadata: Optional[JSONDict] = None,
         idempotency_key: Optional[str] = None,
     ) -> ActionSubmitResponse:
-        """Validate an action via `/actions/submit`."""
+        """Evaluate an action via `/actions/submit`."""
         payload: ActionSubmitRequest = {"action": action, "actor": actor}
         if value is not None:
             payload["value"] = value
@@ -239,14 +251,18 @@ class AsyncActionsAPI:
             payload["target"] = target
         if domain is not None:
             payload["domain"] = domain
-        if metadata:
-            payload["metadata"] = metadata
+        if context is not None:
+            payload["context"] = context
+        elif metadata is not None:
+            payload["context"] = metadata
         return await self._transport.request(
             method="POST",
             path="/actions/submit",
             json_body=payload,
             idempotency_key=idempotency_key,
         )
+
+    evaluate = submit
 
     @overload
     async def submit_v2(self, *, payload: ActionSubmitV2Request, idempotency_key: Optional[str] = None) -> JSONDict:
@@ -262,11 +278,14 @@ class AsyncActionsAPI:
         payload: ActionSubmitV2Request | ActionSubmitV2Model,
         idempotency_key: Optional[str] = None,
     ) -> JSONDict:
-        """Validate with Pro decision intelligence via `/actions/submit/v2`."""
+        """Evaluate action via `/actions/submit/v2`."""
+        body = to_payload(payload)
+        if "context" not in body and "metadata" in body:
+            body["context"] = body["metadata"]
         return await self._transport.request(
             method="POST",
             path="/actions/submit/v2",
-            json_body=to_payload(payload),
+            json_body=body,
             idempotency_key=idempotency_key,
         )
 
@@ -284,11 +303,14 @@ class AsyncActionsAPI:
         payload: ActionSubmitV2Request | ActionSubmitV2Model,
         idempotency_key: Optional[str] = None,
     ) -> JSONDict:
-        """Run a non-persistent validation via `/actions/submit/dry-run`."""
+        """Run a non-persistent evaluation via `/actions/submit/dry-run`."""
+        body = to_payload(payload)
+        if "context" not in body and "metadata" in body:
+            body["context"] = body["metadata"]
         return await self._transport.request(
             method="POST",
             path="/actions/submit/dry-run",
-            json_body=to_payload(payload),
+            json_body=body,
             idempotency_key=idempotency_key,
         )
 
@@ -310,7 +332,7 @@ class AsyncActionsAPI:
     async def ingest_memory(
         self,
         *,
-        events: list[FutureMemoryEvent],
+        events: list[DecisionMemoryEvent],
         source: str = "adapter",
         source_version: Optional[str] = None,
         actor: Optional[str] = None,

@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bighub"
-version = "0.2.6"
-description = "Official Python SDK for decision intelligence and self-improving rules for AI agents with BIGHUB."
+version = "3.0.1"
+description = "Official Python SDK for decision learning for AI agents with BIGHUB."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
   { name = "BIGHUB_CEO" }
 ]
-keywords = ["bighub", "ai-agents", "decision-intelligence", "self-improving-rules", "sdk"]
+keywords = ["bighub", "ai-agents", "decision-learning", "sdk"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -38,6 +38,8 @@ dev = [
 
 [project.urls]
 Homepage = "https://bighub.io"
+GitHub = "https://github.com/bighub-io/bighub"
+MCPServer = "https://www.npmjs.com/package/@bighub/bighub-mcp"
 PyPI = "https://pypi.org/project/bighub/"
 OpenAIAdapter = "https://pypi.org/project/bighub-openai/"
 

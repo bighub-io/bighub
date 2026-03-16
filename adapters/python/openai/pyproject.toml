@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bighub-openai"
-version = "0.2.5"
-description = "OpenAI adapter for decision intelligence and self-improving rules with BIGHUB."
+version = "3.0.1"
+description = "OpenAI adapter for decision learning for AI agent actions with BIGHUB."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
   { name = "BIGHUB_CEO" }
 ]
-keywords = ["bighub", "openai", "ai-agents", "decision-intelligence", "tool-calling"]
+keywords = ["bighub", "openai", "ai-agents", "decision-learning", "tool-calling"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -27,7 +27,7 @@ classifiers = [
   "Typing :: Typed"
 ]
 dependencies = [
-  "bighub>=0.2.6,<0.3.0",
+  "bighub>=3.0.1,<4.0.0",
   "openai>=2.0.0,<3.0.0",
 ]
 
@@ -38,6 +38,8 @@ dev = [
 
 [project.urls]
 Homepage = "https://bighub.io"
+GitHub = "https://github.com/bighub-io/bighub"
+MCPServer = "https://www.npmjs.com/package/@bighub/bighub-mcp"
 PyPI = "https://pypi.org/project/bighub-openai/"
 CoreSDK = "https://pypi.org/project/bighub/"
 

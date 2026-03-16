@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.0.1] - 2026-03-16
+
+### Changed
+- Added missing project links in PyPI metadata:
+  - GitHub repository: `https://github.com/bighub-io/bighub`
+  - MCP package: `https://www.npmjs.com/package/@bighub/bighub-mcp`
+- Bumped core SDK dependency floor to `bighub>=3.0.1,<4.0.0`.
+
+## [3.0.0] - 2026-03-12
+
+### Changed
+- Bumped adapter version to `3.0.0` to align with the SDK major release line.
+- Updated SDK compatibility constraint to `bighub>=3.0.0,<4.0.0`.
+- Consolidated release readiness guidance for 3.0 alignment (version sync + compatibility checks).
+- Fixed outcome reporting alignment with backend taxonomy by mapping tool execution failures to `FAILURE` (instead of non-existent `TOOL_ERROR`).
+
+## [0.3.0] - 2026-03-15
+
+### Changed
+- Pivoted adapter positioning and documentation to the full decision learning loop:
+  - evaluate tool call
+  - execute when allowed
+  - report real outcome
+  - learn for future similar actions.
+- Promoted `BighubOpenAI` and `AsyncBighubOpenAI` as canonical public classes.
+- Rewrote README around decision cases, outcome linkage, calibration, learned guidance, and safety floor behavior.
+
+### Added
+
+- Automatic outcome reporting hooks after tool execution outcomes (success/error) so adapter flows can feed BIGHUB outcome learning.
+- Outcome-aware integration path to support `evaluate -> execute -> report outcome -> learn` end-to-end from OpenAI tool calls.
+- Expanded tests for canonical class naming, alias compatibility, and outcome reporting behavior.
+
+### Compatibility
+
+- Kept `GuardedOpenAI` / `AsyncGuardedOpenAI` as backward-compatible aliases to avoid breaking existing integrations.
+- Aligned dependencies to the SDK decision learning line: `bighub>=0.3.0,<0.4.0`.
+- Synced package metadata and runtime version to `0.3.0`.
+
 ## [0.2.5] - 2026-03-09
 
 ### Changed

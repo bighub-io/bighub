@@ -54,11 +54,14 @@ class _RegisteredTool:
 
 
 @dataclass
-class GuardedToolResult:
+class ToolResult:
     status: str
     decision: Dict[str, Any]
     output: Optional[Any] = None
     error: Optional[str] = None
+
+
+GuardedToolResult = ToolResult
 
 
 @dataclass
@@ -78,9 +81,10 @@ class ToolExecutionEvent:
     source_version: Optional[str] = None
 
 
-class GuardedOpenAI:
+class BighubOpenAI:
     """
-    OpenAI tool-calling adapter that enforces BIGHUB governance before tool execution.
+    OpenAI tool-calling adapter that evaluates actions via BIGHUB before tool execution.
+    Integrates the full decision learning loop: evaluate → execute → report outcome → learn.
     """
 
     def __init__(
@@ -95,6 +99,7 @@ class GuardedOpenAI:
         memory_source: str = "openai_adapter",
         memory_source_version: str = f"bighub-openai@{__version__}",
         memory_ingest_timeout_ms: int = 300,
+        outcome_reporting: bool = True,
         openai_api_key: Optional[str] = None,
         openai_client: Optional[Any] = None,
         bighub_client: Optional[BighubClient] = None,
@@ -117,6 +122,7 @@ class GuardedOpenAI:
             memory_source=memory_source,
             memory_source_version=memory_source_version,
             memory_ingest_timeout_ms=memory_ingest_timeout_ms,
+            outcome_reporting=outcome_reporting,
             fail_mode=fail_mode,
             max_tool_rounds=max_tool_rounds,
             provider_timeout_seconds=provider_timeout_seconds,
@@ -142,6 +148,7 @@ class GuardedOpenAI:
         memory_source: str,
         memory_source_version: str,
         memory_ingest_timeout_ms: int,
+        outcome_reporting: bool,
         fail_mode: str,
         max_tool_rounds: int,
         provider_timeout_seconds: float,
@@ -167,6 +174,7 @@ class GuardedOpenAI:
         self.memory_source = memory_source
         self.memory_source_version = memory_source_version
         self.memory_ingest_timeout_ms = max(100, int(memory_ingest_timeout_ms))
+        self.outcome_reporting = outcome_reporting
         self.fail_mode = fail_mode
         self.max_tool_rounds = max_tool_rounds
         self.provider_timeout_seconds = max(1.0, float(provider_timeout_seconds))
@@ -190,7 +198,7 @@ class GuardedOpenAI:
             from openai import OpenAI
         except ImportError as exc:  # pragma: no cover - import path check only
             raise AdapterConfigurationError(
-                "openai package is required for GuardedOpenAI"
+                "openai package is required for BighubOpenAI"
             ) from exc
         return OpenAI(api_key=openai_api_key)
 
@@ -236,7 +244,7 @@ class GuardedOpenAI:
     def close(self) -> None:
         self._bighub.close()
 
-    def __enter__(self) -> "GuardedOpenAI":
+    def __enter__(self) -> "BighubOpenAI":
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -273,7 +281,7 @@ class GuardedOpenAI:
         for _ in range(self.max_tool_rounds):
             function_calls = self._extract_function_calls(response)
             if not function_calls:
-                self._persist_memory(events=execution_events, model=model, trace_id=trace_id)
+                self._persist_decisions(events=execution_events, model=model, trace_id=trace_id)
                 llm_response = self._serialize_response(response)
                 payload: Dict[str, Any] = {
                     **llm_response,  # backwards compatibility
@@ -326,7 +334,7 @@ class GuardedOpenAI:
         extra_create_args: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """
-        Stream model output while preserving governed tool execution.
+        Stream model output while evaluating tool calls via BIGHUB.
 
         Yields event envelopes:
         - {"type": "llm_delta", "delta": "...", "response_id": "..."}
@@ -365,7 +373,7 @@ class GuardedOpenAI:
 
             function_calls = self._extract_function_calls(response)
             if not function_calls:
-                self._persist_memory(events=execution_events, model=model, trace_id=trace_id)
+                self._persist_decisions(events=execution_events, model=model, trace_id=trace_id)
                 llm_response = self._serialize_response(response)
                 payload: Dict[str, Any] = {
                     **llm_response,  # backwards compatibility
@@ -442,7 +450,7 @@ class GuardedOpenAI:
         maybe_result = tool.fn(**arguments)
         if inspect.isawaitable(maybe_result):
             raise AdapterConfigurationError(
-                "Async tool callable detected in sync adapter. Use AsyncGuardedOpenAI."
+                "Async tool callable detected in sync adapter. Use AsyncBighubOpenAI."
             )
         return {
             "request_id": request_id,
@@ -463,7 +471,7 @@ class GuardedOpenAI:
         on_approval_required: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
     ) -> Dict[str, Any]:
         """
-        Run a governed interaction and optionally resume execution after human approval.
+        Run an evaluated interaction and optionally resume execution after human approval.
         """
         response = self.run(
             messages=messages,
@@ -515,14 +523,14 @@ class GuardedOpenAI:
 
     def check_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Evaluate governance decision without executing the tool.
+        Evaluate action decision without executing the tool.
         """
         if tool_name not in self._tools:
             raise AdapterConfigurationError(f"Tool '{tool_name}' is not registered")
         tool = self._tools[tool_name]
-        return self._validate_with_bighub(tool, arguments)
+        return self._evaluate_action(tool, arguments)
 
-    def _persist_memory(
+    def _persist_decisions(
         self,
         *,
         events: List[ToolExecutionEvent],
@@ -566,7 +574,7 @@ class GuardedOpenAI:
         except FutureTimeoutError:
             return
         except Exception:
-            # Memory ingest is best-effort; governance path must never fail because of telemetry.
+            # Memory ingest is best-effort; evaluation path must never fail because of telemetry.
             return
 
     def _openai_tools(self) -> List[Dict[str, Any]]:
@@ -597,7 +605,7 @@ class GuardedOpenAI:
             if param.name in {"self", "cls"}:
                 continue
             annotation = param.annotation if param.annotation is not inspect._empty else Any
-            properties[param.name] = {"type": GuardedOpenAI._json_schema_type(annotation)}
+            properties[param.name] = {"type": BighubOpenAI._json_schema_type(annotation)}
             if param.default is inspect._empty:
                 required.append(param.name)
         return {
@@ -630,7 +638,7 @@ class GuardedOpenAI:
         if origin is Union and args:
             non_none = [arg for arg in args if arg is not type(None)]
             if non_none:
-                return GuardedOpenAI._json_schema_type(non_none[0])
+                return BighubOpenAI._json_schema_type(non_none[0])
         return "string"
 
     def _extract_function_calls(self, response: Any) -> List[Dict[str, Any]]:
@@ -673,29 +681,39 @@ class GuardedOpenAI:
 
         tool = self._tools[name]
         args = self._parse_arguments(call["arguments"])
-        decision = self._validate_with_bighub(tool, args)
+        decision = self._evaluate_action(tool, args)
 
         if decision.get("allowed"):
             try:
                 output = tool.fn(**args)
-                result = GuardedToolResult(
+                result = ToolResult(
                     status="executed",
                     decision=decision,
                     output=output,
                 )
+                self._report_outcome(
+                    decision=decision, tool_name=name, status="SUCCESS",
+                    description=f"Tool {name} executed successfully",
+                )
             except Exception as exc:
-                result = GuardedToolResult(
+                result = ToolResult(
                     status="tool_error",
                     decision=decision,
                     error=str(exc),
                 )
+                # Backend outcome taxonomy does not define TOOL_ERROR.
+                # Map execution failures to FAILURE for /outcomes/report compatibility.
+                self._report_outcome(
+                    decision=decision, tool_name=name, status="FAILURE",
+                    description=f"Tool {name} raised: {exc}",
+                )
         elif decision.get("result") == "requires_approval":
-            result = GuardedToolResult(
+            result = ToolResult(
                 status="approval_required",
                 decision=decision,
             )
         else:
-            result = GuardedToolResult(
+            result = ToolResult(
                 status="blocked",
                 decision=decision,
             )
@@ -711,7 +729,7 @@ class GuardedOpenAI:
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
-    def _validate_with_bighub(
+    def _evaluate_action(
         self, tool: _RegisteredTool, args: Dict[str, Any]
     ) -> Dict[str, Any]:
         action = tool.action_name or tool.name
@@ -736,7 +754,7 @@ class GuardedOpenAI:
                     "actor": actor,
                 }
                 if metadata:
-                    payload["metadata"] = metadata
+                    payload["context"] = metadata
                 return self._bighub.actions.submit_v2(payload=payload)
             return self._bighub.actions.submit(
                 action=action,
@@ -744,20 +762,50 @@ class GuardedOpenAI:
                 target=target,
                 domain=domain,
                 actor=actor,
-                metadata=metadata,
+                context=metadata,
             )
         except Exception as exc:
             if self.fail_mode == "open":
                 return {
                     "allowed": True,
                     "result": "allowed",
-                    "reason": f"Policy check bypassed (fail_open): {exc}",
+                    "reason": f"Evaluation bypassed (fail_open): {exc}",
                 }
             return {
                 "allowed": False,
                 "result": "blocked",
-                "reason": f"Policy check failed (fail_closed): {exc}",
+                "reason": f"Evaluation failed (fail_closed): {exc}",
             }
+
+    def _validate_with_bighub(
+        self, tool: _RegisteredTool, args: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return self._evaluate_action(tool, args)
+
+    def _report_outcome(
+        self,
+        *,
+        decision: Dict[str, Any],
+        tool_name: str,
+        status: str,
+        description: str,
+    ) -> None:
+        if not self.outcome_reporting:
+            return
+        request_id = decision.get("request_id")
+        if not request_id:
+            return
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    self._bighub.outcomes.report,
+                    request_id=request_id,
+                    status=status,
+                    description=description,
+                )
+                future.result(timeout=self.memory_ingest_timeout_ms / 1000.0)
+        except Exception:
+            pass
 
     @staticmethod
     def _infer_value(args: Dict[str, Any]) -> float:
@@ -802,27 +850,27 @@ class GuardedOpenAI:
 
     @staticmethod
     def _serialize_response(response: Any) -> Dict[str, Any]:
-        response_id = GuardedOpenAI._get_attr(response, "id")
-        output = GuardedOpenAI._get_attr(response, "output") or []
-        output_text = GuardedOpenAI._normalize_output_text(response=response, output=output)
+        response_id = BighubOpenAI._get_attr(response, "id")
+        output = BighubOpenAI._get_attr(response, "output") or []
+        output_text = BighubOpenAI._normalize_output_text(response=response, output=output)
         return {
             "response_id": response_id,
             "output_text": output_text,
-            "output": [GuardedOpenAI._to_dict(item) for item in output],
+            "output": [BighubOpenAI._to_dict(item) for item in output],
         }
 
     @staticmethod
     def _normalize_output_text(*, response: Any, output: List[Any]) -> str:
-        output_text = GuardedOpenAI._get_attr(response, "output_text")
+        output_text = BighubOpenAI._get_attr(response, "output_text")
         if isinstance(output_text, str) and output_text:
             return output_text
 
         # Fallback parser for provider objects where output_text can be absent.
         chunks: List[str] = []
         for item in output:
-            content = GuardedOpenAI._get_attr(item, "content") or []
+            content = BighubOpenAI._get_attr(item, "content") or []
             for block in content:
-                text_val = GuardedOpenAI._get_attr(block, "text")
+                text_val = BighubOpenAI._get_attr(block, "text")
                 if isinstance(text_val, str) and text_val:
                     chunks.append(text_val)
 
@@ -968,9 +1016,9 @@ class GuardedOpenAI:
             self._provider_circuit_opened_at = time.monotonic()
 
 
-class AsyncGuardedOpenAI(GuardedOpenAI):
+class AsyncBighubOpenAI(BighubOpenAI):
     """
-    Async OpenAI tool-calling adapter that enforces BIGHUB governance before tool execution.
+    Async OpenAI tool-calling adapter that evaluates actions via BIGHUB before tool execution.
     """
 
     def __init__(
@@ -985,6 +1033,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
         memory_source: str = "openai_adapter",
         memory_source_version: str = f"bighub-openai@{__version__}",
         memory_ingest_timeout_ms: int = 300,
+        outcome_reporting: bool = True,
         openai_api_key: Optional[str] = None,
         openai_client: Optional[Any] = None,
         bighub_client: Optional[AsyncBighubClient] = None,
@@ -1007,6 +1056,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
             memory_source=memory_source,
             memory_source_version=memory_source_version,
             memory_ingest_timeout_ms=memory_ingest_timeout_ms,
+            outcome_reporting=outcome_reporting,
             fail_mode=fail_mode,
             max_tool_rounds=max_tool_rounds,
             provider_timeout_seconds=provider_timeout_seconds,
@@ -1031,14 +1081,14 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
             from openai import AsyncOpenAI
         except ImportError as exc:  # pragma: no cover - import path check only
             raise AdapterConfigurationError(
-                "openai package is required for AsyncGuardedOpenAI"
+                "openai package is required for AsyncBighubOpenAI"
             ) from exc
         return AsyncOpenAI(api_key=openai_api_key)
 
     async def close(self) -> None:
         await self._bighub.close()
 
-    async def __aenter__(self) -> "AsyncGuardedOpenAI":
+    async def __aenter__(self) -> "AsyncBighubOpenAI":
         return self
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -1075,7 +1125,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
         for _ in range(self.max_tool_rounds):
             function_calls = self._extract_function_calls(response)
             if not function_calls:
-                await self._persist_memory(events=execution_events, model=model, trace_id=trace_id)
+                await self._persist_decisions(events=execution_events, model=model, trace_id=trace_id)
                 llm_response = self._serialize_response(response)
                 payload: Dict[str, Any] = {
                     **llm_response,  # backwards compatibility
@@ -1130,7 +1180,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
         extra_create_args: Optional[Dict[str, Any]] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
-        Stream model output while preserving governed tool execution.
+        Stream model output while evaluating tool calls via BIGHUB.
 
         Yields event envelopes:
         - {"type": "llm_delta", "delta": "...", "response_id": "..."}
@@ -1170,7 +1220,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
 
             function_calls = self._extract_function_calls(response)
             if not function_calls:
-                await self._persist_memory(events=execution_events, model=model, trace_id=trace_id)
+                await self._persist_decisions(events=execution_events, model=model, trace_id=trace_id)
                 llm_response = self._serialize_response(response)
                 payload: Dict[str, Any] = {
                     **llm_response,  # backwards compatibility
@@ -1309,7 +1359,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
         on_approval_required: Optional[Callable[[Dict[str, Any]], Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Run a governed interaction and optionally resume execution after human approval.
+        Run an evaluated interaction and optionally resume execution after human approval.
         """
         response = await self.run(
             messages=messages,
@@ -1364,14 +1414,14 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
 
     async def check_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Evaluate governance decision without executing the tool.
+        Evaluate action decision without executing the tool.
         """
         if tool_name not in self._tools:
             raise AdapterConfigurationError(f"Tool '{tool_name}' is not registered")
         tool = self._tools[tool_name]
-        return await self._validate_with_bighub(tool, arguments)
+        return await self._evaluate_action(tool, arguments)
 
-    async def _persist_memory(
+    async def _persist_decisions(
         self,
         *,
         events: List[ToolExecutionEvent],
@@ -1413,7 +1463,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
                 timeout=self.memory_ingest_timeout_ms / 1000.0,
             )
         except Exception:
-            # Memory ingest is best-effort; governance path must never fail because of telemetry.
+            # Memory ingest is best-effort; evaluation path must never fail because of telemetry.
             return
 
     async def _handle_function_call(self, call: Dict[str, Any]) -> tuple[Dict[str, Any], ToolExecutionEvent]:
@@ -1440,30 +1490,40 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
 
         tool = self._tools[name]
         args = self._parse_arguments(call["arguments"])
-        decision = await self._validate_with_bighub(tool, args)
+        decision = await self._evaluate_action(tool, args)
 
         if decision.get("allowed"):
             try:
                 maybe_result = tool.fn(**args)
                 output = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
-                result = GuardedToolResult(
+                result = ToolResult(
                     status="executed",
                     decision=decision,
                     output=output,
                 )
+                await self._report_outcome(
+                    decision=decision, tool_name=name, status="SUCCESS",
+                    description=f"Tool {name} executed successfully",
+                )
             except Exception as exc:
-                result = GuardedToolResult(
+                result = ToolResult(
                     status="tool_error",
                     decision=decision,
                     error=str(exc),
                 )
+                # Backend outcome taxonomy does not define TOOL_ERROR.
+                # Map execution failures to FAILURE for /outcomes/report compatibility.
+                await self._report_outcome(
+                    decision=decision, tool_name=name, status="FAILURE",
+                    description=f"Tool {name} raised: {exc}",
+                )
         elif decision.get("result") == "requires_approval":
-            result = GuardedToolResult(
+            result = ToolResult(
                 status="approval_required",
                 decision=decision,
             )
         else:
-            result = GuardedToolResult(
+            result = ToolResult(
                 status="blocked",
                 decision=decision,
             )
@@ -1479,7 +1539,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
-    async def _validate_with_bighub(
+    async def _evaluate_action(
         self, tool: _RegisteredTool, args: Dict[str, Any]
     ) -> Dict[str, Any]:
         action = tool.action_name or tool.name
@@ -1504,7 +1564,7 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
                     "actor": actor,
                 }
                 if metadata:
-                    payload["metadata"] = metadata
+                    payload["context"] = metadata
                 return await self._bighub.actions.submit_v2(payload=payload)
             return await self._bighub.actions.submit(
                 action=action,
@@ -1512,18 +1572,55 @@ class AsyncGuardedOpenAI(GuardedOpenAI):
                 target=target,
                 domain=domain,
                 actor=actor,
-                metadata=metadata,
+                context=metadata,
             )
         except Exception as exc:
             if self.fail_mode == "open":
                 return {
                     "allowed": True,
                     "result": "allowed",
-                    "reason": f"Policy check bypassed (fail_open): {exc}",
+                    "reason": f"Evaluation bypassed (fail_open): {exc}",
                 }
             return {
                 "allowed": False,
                 "result": "blocked",
-                "reason": f"Policy check failed (fail_closed): {exc}",
+                "reason": f"Evaluation failed (fail_closed): {exc}",
             }
+
+    async def _validate_with_bighub(
+        self, tool: _RegisteredTool, args: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return await self._evaluate_action(tool, args)
+
+    async def _report_outcome(
+        self,
+        *,
+        decision: Dict[str, Any],
+        tool_name: str,
+        status: str,
+        description: str,
+    ) -> None:
+        if not self.outcome_reporting:
+            return
+        request_id = decision.get("request_id")
+        if not request_id:
+            return
+        try:
+            await asyncio.wait_for(
+                self._bighub.outcomes.report(
+                    request_id=request_id,
+                    status=status,
+                    description=description,
+                ),
+                timeout=self.memory_ingest_timeout_ms / 1000.0,
+            )
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Backward-compat aliases (deprecated, use BighubOpenAI / AsyncBighubOpenAI)
+# ---------------------------------------------------------------------------
+GuardedOpenAI = BighubOpenAI
+AsyncGuardedOpenAI = AsyncBighubOpenAI
 

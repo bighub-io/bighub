@@ -1,17 +1,17 @@
 # @bighub/bighub-mcp
 
-> MCP server for decision intelligence and self-improving rules with BIGHUB.
+> MCP server for decision learning on agent actions.
 
-Use BIGHUB from any [Model Context Protocol](https://modelcontextprotocol.io) client. This server exposes MCP tools that simulate, score, enforce, and learn from AI agent execution by calling the BIGHUB API — actions, rules, approvals, kill switch, events, API keys, webhooks, auth, and Future Memory.
+Use BIGHUB from any [Model Context Protocol](https://modelcontextprotocol.io) client to evaluate agent actions, report real outcomes, retrieve similar past cases, and improve future decisions over time.
 
 ```text
-MCP Client (Claude, Cursor, etc.)
-        ↓
-@bighub/bighub-mcp  (stdio)
-        ↓
-BIGHUB Decision Intelligence API (api.bighub.io)
-        ↓
-simulate → score → execute / block / approve
+MCP client
+   ↓
+@bighub/bighub-mcp
+   ↓
+BIGHUB API
+   ↓
+evaluate -> execute -> report outcome -> learn
 ```
 
 ---
@@ -28,19 +28,19 @@ Requires Node.js 18+.
 
 ## Quickstart
 
-1. Set your API key:
+Set your API key:
 
 ```bash
 export BIGHUB_API_KEY=your_api_key
 ```
 
-2. Run the server in stdio mode:
+Run the server in stdio mode:
 
 ```bash
 npx @bighub/bighub-mcp
 ```
 
-The server exposes MCP tools over stdio. Connect it to any MCP-compatible client (Claude Desktop, Cursor, etc.) by adding it to your MCP configuration:
+Add it to your MCP client configuration:
 
 ```json
 {
@@ -56,75 +56,87 @@ The server exposes MCP tools over stdio. Connect it to any MCP-compatible client
 }
 ```
 
+Works with MCP-compatible clients such as Claude Desktop and Cursor.
+
 ---
 
-## What BIGHUB does
+## Core MCP Tools
 
-BIGHUB simulates every agent action, learns from every decision, and makes your rules smarter over time. Every action is stress-tested across 100+ scenarios and scored for risk, fragility, and blast radius — before execution.
+Most teams start with the first three tools (the core loop):
 
-| Guardrails | BIGHUB |
+| Tool | Purpose |
 |---|---|
-| Block or allow | Simulate, score, enforce, and learn |
-| Static rules | Rules that improve from every decision |
-| No visibility into risk | Fragility, blast radius, and impact scored before execution |
-| Same policy forever | Future Memory detects patterns and recommends smarter policies |
+| `bighub_actions_submit` | Submit an action for evaluation before execution |
+| `bighub_outcomes_report` | Report what actually happened |
+| `bighub_precedents_query` | Retrieve similar past cases |
+| `bighub_calibration_report` | Compare prediction vs reality |
+| `bighub_insights_advise` | Retrieve learned guidance for the next action |
+
+`bighub_actions_submit_v2` is available as an advanced action submission endpoint.
 
 ---
 
-## Environment variables
+## Typical MCP Loop
+
+1. Evaluate the action
+2. Execute it in your runtime
+3. Report the real outcome
+4. Retrieve similar past cases
+5. Compare prediction vs reality
+6. Use learned guidance on the next action
+
+Typical tool flow:
+
+```text
+bighub_actions_submit
+-> agent runtime executes action
+-> bighub_outcomes_report
+-> bighub_precedents_query
+-> bighub_calibration_report
+-> bighub_insights_advise
+```
+
+---
+
+## Environment Variables
 
 | Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `BIGHUB_API_KEY` | Yes* | — | API key authentication (`X-API-Key` header) |
-| `BIGHUB_BEARER_TOKEN` | No | — | Alternative auth (`Authorization: Bearer`) |
+|---|---|---|---|
+| `BIGHUB_API_KEY` | Yes* | - | API key auth |
+| `BIGHUB_BEARER_TOKEN` | No | - | Alternative bearer auth |
 | `BIGHUB_BASE_URL` | No | `https://api.bighub.io` | API base URL |
-| `BIGHUB_TIMEOUT_MS` | No | `15000` | HTTP request timeout in milliseconds |
-| `BIGHUB_MAX_RETRIES` | No | `2` | Retry count on transient failures (429/5xx) |
-| `BIGHUB_ALLOW_INSECURE_HTTP` | No | — | Allow HTTP for localhost/private host testing |
+| `BIGHUB_TIMEOUT_MS` | No | `15000` | Request timeout |
+| `BIGHUB_MAX_RETRIES` | No | `2` | Retries on transient failures |
+| `BIGHUB_ALLOW_INSECURE_HTTP` | No | - | Allow HTTP for local/private testing |
 
-*One of `BIGHUB_API_KEY` or `BIGHUB_BEARER_TOKEN` is required.
+\* One of `BIGHUB_API_KEY` or `BIGHUB_BEARER_TOKEN` is required.
 
----
-
-## Tool coverage
-
-35+ MCP tools mapping one-to-one to BIGHUB API endpoints:
-
-| Domain | Tools | Description |
-|--------|-------|-------------|
-| **Actions** | submit, submit_v2, dry_run, status, verify, stats, dashboard_summary | Simulate, score, and enforce agent actions before execution. |
-| **Future Memory** | ingest, context, refresh_aggregates, recommendations | Ingest decisions, query learned patterns, surface self-improving policy recommendations. |
-| **Rules** | create, list, get, update, delete, pause, resume, validate, dry_run, versions, domains, apply_patch, purge_idempotency | Define and manage execution policies that improve over time. |
-| **Approvals** | list, resolve | Human-in-the-loop approval workflows. |
-| **Kill switch** | status, activate, deactivate | Emergency stop for all agent execution. |
-| **Events** | list, stats | Audit trail for scored decisions. |
-| **API keys** | create, list, delete, rotate, validate, scopes | Manage authentication credentials. |
-| **Webhooks** | create, list, get, update, delete, deliveries, test, list_events, verify_signature, replay | Export decision events to external systems. |
-| **Auth** | signup, login, refresh, logout | Account and session management. |
-| **Fallback** | `bighub_http_request` | Generic tool for any BIGHUB endpoint not yet wrapped. |
+Some management tools (for example API key and webhook administration) require user JWT auth and should be used with `BIGHUB_BEARER_TOKEN`.
 
 ---
 
-## Reliability
+## Free BETA
 
-- Retries with exponential backoff and jitter for transient errors (429, 5xx, network)
-- Configurable timeout per request
-- Structured error metadata preserved from API responses
-- HTTPS enforced by default (override for local testing only)
+Current Free BETA limits:
+
+- 3 agents
+- 2,500 actions / month
+- 30 days history
+- 1 environment
 
 ---
 
-## Local development
+## Local Development
 
 ```bash
 git clone https://github.com/bighub-io/bighub.git
 cd bighub/servers/mcp
 npm install
-npm run test      # run tests with vitest
-npm run check     # typecheck with tsc --noEmit
-npm run build     # compile to dist/
-npm run start     # run compiled server
-npm run dev       # run with tsx (auto-reload)
+npm run test
+npm run check
+npm run build
+npm run start
+npm run dev
 ```
 
 ---
@@ -132,10 +144,10 @@ npm run dev       # run with tsx (auto-reload)
 ## Links
 
 - [bighub.io](https://bighub.io)
-- [GitHub — bighub-io/bighub](https://github.com/bighub-io/bighub)
-- [npm — @bighub/bighub-mcp](https://www.npmjs.com/package/@bighub/bighub-mcp)
-- [PyPI — bighub (Python SDK)](https://pypi.org/project/bighub/)
-- [PyPI — bighub-openai](https://pypi.org/project/bighub-openai/)
+- [GitHub - bighub-io/bighub](https://github.com/bighub-io/bighub)
+- [npm - @bighub/bighub-mcp](https://www.npmjs.com/package/@bighub/bighub-mcp)
+- [PyPI - bighub (Python SDK)](https://pypi.org/project/bighub/)
+- [PyPI - bighub-openai](https://pypi.org/project/bighub-openai/)
 
 ---
 

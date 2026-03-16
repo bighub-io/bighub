@@ -29,10 +29,14 @@ class ActionSubmitV2Model:
     value: Optional[float] = None
     target: Optional[str] = None
     domain: Optional[str] = None
+    context: Optional[JSONDict] = None
     metadata: Optional[JSONDict] = None
 
     def to_payload(self) -> JSONDict:
-        return _clean_none(asdict(self))
+        payload = _clean_none(asdict(self))
+        if "context" not in payload and "metadata" in payload:
+            payload["context"] = payload["metadata"]
+        return payload
 
 
 @dataclass

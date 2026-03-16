@@ -24,6 +24,7 @@ class ActionSubmitRequest(TypedDict, total=False):
     target: str
     actor: str
     domain: str
+    context: JSONDict
     metadata: JSONDict
 
 
@@ -33,6 +34,7 @@ class ActionSubmitV2Request(TypedDict, total=False):
     target: str
     actor: str
     domain: str
+    context: JSONDict
     metadata: JSONDict
 
 
@@ -47,7 +49,7 @@ class ActionSubmitResponse(TypedDict, total=False):
     requires_approval: bool
 
 
-class FutureMemoryEvent(TypedDict, total=False):
+class DecisionMemoryEvent(TypedDict, total=False):
     event_id: str
     seq: int
     schema_version: int
@@ -62,7 +64,10 @@ class FutureMemoryEvent(TypedDict, total=False):
     timestamp: str
 
 
-class FutureMemoryIngestRequest(TypedDict, total=False):
+FutureMemoryEvent = DecisionMemoryEvent
+
+
+class DecisionMemoryIngestRequest(TypedDict, total=False):
     source: str
     source_version: str
     actor: str
@@ -71,10 +76,13 @@ class FutureMemoryIngestRequest(TypedDict, total=False):
     trace_id: str
     redact: bool
     redaction_policy: str
-    events: List[FutureMemoryEvent]
+    events: List[DecisionMemoryEvent]
 
 
-class FutureMemoryRecommendationsRequest(TypedDict, total=False):
+FutureMemoryIngestRequest = DecisionMemoryIngestRequest
+
+
+class DecisionMemoryRecommendationsRequest(TypedDict, total=False):
     window_hours: int
     scope: JSONDict
     tool: str
@@ -88,6 +96,9 @@ class FutureMemoryRecommendationsRequest(TypedDict, total=False):
     limit_recommendations: int
     include_examples: bool
     auto_apply: bool
+
+
+FutureMemoryRecommendationsRequest = DecisionMemoryRecommendationsRequest
 
 
 class RuleResponse(TypedDict, total=False):

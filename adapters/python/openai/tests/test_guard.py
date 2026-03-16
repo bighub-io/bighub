@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from bighub_openai import AsyncBighubOpenAI, AsyncGuardedOpenAI, BighubOpenAI, GuardedOpenAI
+from bighub_openai import AsyncBighubOpenAI, AsyncGuardedOpenAI, BighubOpenAI, GuardedOpenAI, ToolResult
 
 try:
     from openai import APIConnectionError as _RetryableError
@@ -94,15 +94,24 @@ class FakeStream:
         return self._final
 
 
+class FakeOutcomes:
+    def __init__(self) -> None:
+        self.reported = []
+
+    def report(self, **kwargs):
+        self.reported.append(kwargs)
+        return {"ok": True}
+
+
 class FakeActions:
     def __init__(self) -> None:
         self.memory_payloads = []
 
     def submit(self, **kwargs):
-        return {"allowed": True, "result": "allowed", "reason": "ok", "echo": kwargs}
+        return {"allowed": True, "result": "allowed", "reason": "ok", "request_id": "req_sync_1", "echo": kwargs}
 
     def submit_v2(self, **kwargs):
-        return {"allowed": True, "result": "allowed", "reason": "ok-v2", "echo": kwargs}
+        return {"allowed": True, "result": "allowed", "reason": "ok-v2", "request_id": "req_sync_v2", "echo": kwargs}
 
     def ingest_memory(self, **kwargs):
         self.memory_payloads.append(kwargs)
@@ -112,6 +121,7 @@ class FakeActions:
 class FakeBighubClient:
     def __init__(self) -> None:
         self.actions = FakeActions()
+        self.outcomes = FakeOutcomes()
         self.approvals = SimpleNamespace(
             resolve=lambda request_id, resolution, comment=None: {
                 "request_id": request_id,
@@ -209,15 +219,24 @@ class FakeAsyncStream:
         return self._final
 
 
+class FakeAsyncOutcomes:
+    def __init__(self) -> None:
+        self.reported = []
+
+    async def report(self, **kwargs):
+        self.reported.append(kwargs)
+        return {"ok": True}
+
+
 class FakeAsyncActions:
     def __init__(self) -> None:
         self.memory_payloads = []
 
     async def submit(self, **kwargs):
-        return {"allowed": True, "result": "allowed", "reason": "ok", "echo": kwargs}
+        return {"allowed": True, "result": "allowed", "reason": "ok", "request_id": "req_async_1", "echo": kwargs}
 
     async def submit_v2(self, **kwargs):
-        return {"allowed": True, "result": "allowed", "reason": "ok-v2", "echo": kwargs}
+        return {"allowed": True, "result": "allowed", "reason": "ok-v2", "request_id": "req_async_v2", "echo": kwargs}
 
     async def ingest_memory(self, **kwargs):
         self.memory_payloads.append(kwargs)
@@ -227,6 +246,7 @@ class FakeAsyncActions:
 class FakeAsyncBighubClient:
     def __init__(self) -> None:
         self.actions = FakeAsyncActions()
+        self.outcomes = FakeAsyncOutcomes()
         self.approvals = SimpleNamespace(resolve=self._resolve)
 
     async def _resolve(self, request_id, resolution, comment=None):
@@ -296,6 +316,7 @@ class ApprovalRequiredActions:
 class ApprovalRequiredBighubClient:
     def __init__(self) -> None:
         self.actions = ApprovalRequiredActions()
+        self.outcomes = FakeOutcomes()
         self.approvals = SimpleNamespace(
             resolve=lambda request_id, resolution, comment=None: {
                 "request_id": request_id,
@@ -324,6 +345,7 @@ class AsyncApprovalRequiredActions:
 class AsyncApprovalRequiredBighubClient:
     def __init__(self) -> None:
         self.actions = AsyncApprovalRequiredActions()
+        self.outcomes = FakeAsyncOutcomes()
         self.approvals = SimpleNamespace(resolve=self._resolve)
 
     async def _resolve(self, request_id, resolution, comment=None):
@@ -344,7 +366,7 @@ def test_guarded_openai_executes_tool_when_allowed() -> None:
         executed["called"] = True
         return {"order_id": order_id, "amount": amount, "ok": True}
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -387,6 +409,7 @@ def test_guarded_openai_blocks_when_policy_denies() -> None:
     class BlockingBighubClient:
         def __init__(self) -> None:
             self.actions = BlockingActions()
+            self.outcomes = FakeOutcomes()
 
         def close(self):
             return None
@@ -397,7 +420,7 @@ def test_guarded_openai_blocks_when_policy_denies() -> None:
         executed["called"] = True
         return {"ok": True}
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -430,7 +453,7 @@ def test_guarded_openai_supports_submit_v2_mode() -> None:
         executed["called"] = True
         return {"ok": True}
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -452,7 +475,7 @@ def test_guarded_openai_inferrs_parameters_schema() -> None:
     def refund_payment(order_id: str, amount: float):
         return {"ok": True}
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -466,7 +489,7 @@ def test_guarded_openai_inferrs_parameters_schema() -> None:
 
 
 def test_check_tool_silent_mode_returns_decision_only() -> None:
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -485,7 +508,7 @@ def test_check_tool_silent_mode_returns_decision_only() -> None:
 def test_on_decision_hook_is_called() -> None:
     events = []
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -506,13 +529,13 @@ def test_on_decision_hook_is_called() -> None:
     assert "request_id" in events[0]
 
 
-def test_bighub_openai_alias_points_to_guarded() -> None:
-    assert BighubOpenAI is GuardedOpenAI
+def test_guarded_openai_alias_points_to_bighub() -> None:
+    assert GuardedOpenAI is BighubOpenAI
 
 
-def test_guarded_openai_persists_future_memory_events() -> None:
+def test_guarded_openai_persists_decision_memory_events() -> None:
     fake_bighub = FakeBighubClient()
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -530,6 +553,131 @@ def test_guarded_openai_persists_future_memory_events() -> None:
     assert fake_bighub.actions.memory_payloads[0]["source"] == "openai_adapter"
 
 
+def test_outcome_reporting_after_tool_execution() -> None:
+    fake_bighub = FakeBighubClient()
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=fake_bighub,
+        outcome_reporting=True,
+    )
+    guard.tool(
+        "refund_payment",
+        lambda order_id, amount: {"ok": True},
+        value_from_args=lambda a: float(a["amount"]),
+    )
+    guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    assert len(fake_bighub.outcomes.reported) == 1
+    assert fake_bighub.outcomes.reported[0]["status"] == "SUCCESS"
+    assert fake_bighub.outcomes.reported[0]["request_id"] == "req_sync_1"
+
+
+def test_outcome_reporting_maps_tool_error_to_failure() -> None:
+    fake_bighub = FakeBighubClient()
+
+    def refund_payment(order_id: str, amount: float):
+        raise RuntimeError("tool exploded")
+
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=fake_bighub,
+        outcome_reporting=True,
+    )
+    guard.tool(
+        "refund_payment",
+        refund_payment,
+        value_from_args=lambda a: float(a["amount"]),
+    )
+    result = guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    assert result["execution"]["last"]["status"] == "tool_error"
+    assert len(fake_bighub.outcomes.reported) == 1
+    assert fake_bighub.outcomes.reported[0]["status"] == "FAILURE"
+    assert fake_bighub.outcomes.reported[0]["request_id"] == "req_sync_1"
+
+
+def test_outcome_reporting_disabled() -> None:
+    fake_bighub = FakeBighubClient()
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=fake_bighub,
+        outcome_reporting=False,
+    )
+    guard.tool(
+        "refund_payment",
+        lambda order_id, amount: {"ok": True},
+        value_from_args=lambda a: float(a["amount"]),
+    )
+    guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    assert len(fake_bighub.outcomes.reported) == 0
+
+
+def test_async_outcome_reporting() -> None:
+    async def _run() -> None:
+        fake_bighub = FakeAsyncBighubClient()
+        guard = AsyncBighubOpenAI(
+            bighub_api_key="bhk_test",
+            actor="AI_AGENT_001",
+            domain="payments",
+            openai_client=FakeAsyncOpenAIClient(),
+            bighub_client=fake_bighub,
+            outcome_reporting=True,
+        )
+        guard.tool(
+            "refund_payment",
+            lambda order_id, amount: {"ok": True},
+            value_from_args=lambda a: float(a["amount"]),
+        )
+        await guard.run(
+            messages=[{"role": "user", "content": "refund"}],
+            model="gpt-4.1",
+        )
+        assert len(fake_bighub.outcomes.reported) == 1
+        assert fake_bighub.outcomes.reported[0]["status"] == "SUCCESS"
+        await guard.close()
+
+    asyncio.run(_run())
+
+
+def test_async_outcome_reporting_maps_tool_error_to_failure() -> None:
+    async def _run() -> None:
+        fake_bighub = FakeAsyncBighubClient()
+
+        async def refund_payment(order_id: str, amount: float):
+            raise RuntimeError("tool exploded")
+
+        guard = AsyncBighubOpenAI(
+            bighub_api_key="bhk_test",
+            actor="AI_AGENT_001",
+            domain="payments",
+            openai_client=FakeAsyncOpenAIClient(),
+            bighub_client=fake_bighub,
+            outcome_reporting=True,
+        )
+        guard.tool(
+            "refund_payment",
+            refund_payment,
+            value_from_args=lambda a: float(a["amount"]),
+        )
+        result = await guard.run(
+            messages=[{"role": "user", "content": "refund"}],
+            model="gpt-4.1",
+        )
+        assert result["execution"]["last"]["status"] == "tool_error"
+        assert len(fake_bighub.outcomes.reported) == 1
+        assert fake_bighub.outcomes.reported[0]["status"] == "FAILURE"
+        await guard.close()
+
+    asyncio.run(_run())
+
+
 def test_async_guarded_openai_executes_tool_when_allowed() -> None:
     async def _run() -> None:
         executed = {"called": False}
@@ -538,7 +686,7 @@ def test_async_guarded_openai_executes_tool_when_allowed() -> None:
             executed["called"] = True
             return {"order_id": order_id, "amount": amount, "ok": True}
 
-        guard = AsyncGuardedOpenAI(
+        guard = AsyncBighubOpenAI(
             bighub_api_key="bhk_test",
             actor="AI_AGENT_001",
             domain="payments",
@@ -565,7 +713,7 @@ def test_async_guarded_openai_executes_tool_when_allowed() -> None:
 
 def test_async_check_tool_silent_mode_returns_decision_only() -> None:
     async def _run() -> None:
-        guard = AsyncGuardedOpenAI(
+        guard = AsyncBighubOpenAI(
             bighub_api_key="bhk_test",
             actor="AI_AGENT_001",
             domain="payments",
@@ -584,12 +732,12 @@ def test_async_check_tool_silent_mode_returns_decision_only() -> None:
     asyncio.run(_run())
 
 
-def test_async_bighub_openai_alias_points_to_async_guarded() -> None:
-    assert AsyncBighubOpenAI is AsyncGuardedOpenAI
+def test_async_guarded_openai_alias_points_to_async_bighub() -> None:
+    assert AsyncGuardedOpenAI is AsyncBighubOpenAI
 
 
 def test_guarded_openai_run_stream_emits_events() -> None:
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -614,7 +762,7 @@ def test_guarded_openai_run_stream_emits_events() -> None:
 
 def test_async_guarded_openai_run_stream_emits_events() -> None:
     async def _run() -> None:
-        guard = AsyncGuardedOpenAI(
+        guard = AsyncBighubOpenAI(
             bighub_api_key="bhk_test",
             actor="AI_AGENT_001",
             domain="payments",
@@ -649,7 +797,7 @@ def test_run_with_approval_resumes_tool_after_resolution() -> None:
         executed["called"] = True
         return {"ok": True, "order_id": order_id, "amount": amount}
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -678,7 +826,7 @@ def test_async_run_with_approval_resumes_tool_after_resolution() -> None:
             executed["called"] = True
             return {"ok": True, "order_id": order_id, "amount": amount}
 
-        guard = AsyncGuardedOpenAI(
+        guard = AsyncBighubOpenAI(
             bighub_api_key="bhk_test",
             actor="AI_AGENT_001",
             domain="payments",
@@ -703,7 +851,7 @@ def test_async_run_with_approval_resumes_tool_after_resolution() -> None:
 
 
 def test_provider_retry_recovers_transient_failure_sync() -> None:
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -720,7 +868,7 @@ def test_provider_retry_recovers_transient_failure_sync() -> None:
 
 def test_provider_circuit_breaker_opens_sync() -> None:
     openai_client = FlakyOpenAIClient(fail_times=10)
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -747,7 +895,7 @@ def test_provider_circuit_breaker_opens_sync() -> None:
 
 def test_provider_retry_recovers_transient_failure_async() -> None:
     async def _run() -> None:
-        guard = AsyncGuardedOpenAI(
+        guard = AsyncBighubOpenAI(
             bighub_api_key="bhk_test",
             actor="AI_AGENT_001",
             domain="payments",
@@ -779,14 +927,14 @@ def test_serialize_response_falls_back_to_content_text_when_output_text_missing(
             )
         ],
     )
-    serialized = GuardedOpenAI._serialize_response(response)
+    serialized = BighubOpenAI._serialize_response(response)
     assert serialized["output_text"] == "Hello world"
 
 
 def test_store_false_is_sent_to_provider() -> None:
     """Verify that store=False is automatically injected into provider create calls."""
     fake_openai = FakeOpenAIClient()
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -828,7 +976,7 @@ def test_store_can_be_overridden_via_extra_create_args() -> None:
             self.responses = SingleShotResponses()
 
     fake_openai = SingleShotOpenAI()
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -850,7 +998,7 @@ def test_store_can_be_overridden_via_extra_create_args() -> None:
 
 def test_extract_function_calls_ignores_reasoning_and_message_items() -> None:
     """Reasoning items and message items in output must not break function call extraction."""
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="test",
@@ -887,7 +1035,7 @@ def test_extract_function_calls_ignores_reasoning_and_message_items() -> None:
 
 def test_parse_stream_event_handles_all_event_types() -> None:
     """Verify _parse_stream_event correctly maps all Responses API stream event types."""
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
@@ -1005,7 +1153,7 @@ def test_continuation_passes_previous_response_id_and_instructions() -> None:
         def __init__(self) -> None:
             self.responses = TrackingResponses()
 
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="test",
@@ -1043,7 +1191,7 @@ def test_non_retryable_error_fails_immediately() -> None:
             self.responses = NonRetryableResponses()
 
     openai_client = NonRetryableOpenAI()
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="test",
@@ -1066,7 +1214,7 @@ def test_non_retryable_error_fails_immediately() -> None:
 
 def test_openai_tools_matches_responses_api_schema() -> None:
     """Tools produced by _openai_tools must match the Responses API schema (no function wrapper)."""
-    guard = GuardedOpenAI(
+    guard = BighubOpenAI(
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="test",
@@ -1102,7 +1250,7 @@ def test_openai_tools_matches_responses_api_schema() -> None:
 
 def test_function_call_output_format_matches_responses_api() -> None:
     """function_call_output dict must have type, call_id, and JSON-string output."""
-    result = GuardedOpenAI._function_output(
+    result = BighubOpenAI._function_output(
         call_id="call_abc",
         output={"status": "executed", "data": 42},
     )

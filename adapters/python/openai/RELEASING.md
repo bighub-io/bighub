@@ -1,6 +1,6 @@
 # Releasing `bighub-openai`
 
-Release process for the BIGHUB OpenAI adapter — decision intelligence for OpenAI tool calls.
+Release process for the BIGHUB OpenAI adapter — decision learning for OpenAI tool calls.
 
 ## Versioning policy (SemVer)
 
@@ -15,7 +15,7 @@ The adapter follows `MAJOR.MINOR.PATCH`:
 ### 1) Go to the adapter package directory
 
 ```bash
-cd sdk/adapters/openai/python
+cd adapters/python/openai
 ```
 
 ### 2) Update version
@@ -57,20 +57,23 @@ git tag sdk-openai-vX.Y.Z
 git push origin sdk-openai-vX.Y.Z
 ```
 
-## Release checklist (current patch example)
+## Release checklist (template)
 
-- [ ] `src/bighub_openai/version.py` -> `"0.2.5"`
-- [ ] `pyproject.toml` -> `version = "0.2.5"`
-- [ ] `pyproject.toml` dependencies: `bighub>=0.2.6,<0.3.0`, `openai>=2.0.0,<3.0.0`
-- [ ] All 27 tests pass (`pytest -q tests`)
+- [ ] `src/bighub_openai/version.py` -> `"X.Y.Z"`
+- [ ] `pyproject.toml` -> `version = "X.Y.Z"`
+- [ ] `pyproject.toml` dependencies aligned:
+  - `bighub>=X.0.0,<(X+1).0.0` (where `X` matches the SDK major line)
+  - `openai>=2.0.0,<3.0.0`
+- [ ] All tests pass (`pytest -q tests`)
 - [ ] Build succeeds:
   - `python -m build`
   - `python -m twine check dist\*`
+- [ ] README snippets align with current SDK/public API names and statuses
 - [ ] README reflects Responses API v2 compatibility
 - [ ] Upload: `python -m twine upload dist/*`
 - [ ] Tag:
-  - `git tag sdk-openai-v0.2.5`
-  - `git push origin sdk-openai-v0.2.5`
+  - `git tag sdk-openai-vX.Y.Z`
+  - `git push origin sdk-openai-vX.Y.Z`
 
 ### PowerShell note (Windows)
 

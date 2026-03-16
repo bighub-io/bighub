@@ -1,6 +1,6 @@
 # Releasing the BIGHUB Python SDK
 
-Release process for the official BIGHUB Python SDK — decision intelligence for autonomous AI agents.
+Release process for the official BIGHUB Python SDK — decision learning for AI agent actions.
 
 ## Versioning policy (SemVer)
 
@@ -10,7 +10,7 @@ The SDK follows Semantic Versioning: `MAJOR.MINOR.PATCH`.
 - **MINOR**: Backward-compatible features (new endpoints, optional args, new resources).
 - **PATCH**: Backward-compatible fixes (bugfixes, reliability, docs-only release metadata).
 
-Until `1.0.0`, breaking changes may still occur, but must be explicitly documented in changelog.
+For any MAJOR release, include an explicit migration note in `CHANGELOG.md`.
 
 ## Changelog policy
 
@@ -33,22 +33,29 @@ Until `1.0.0`, breaking changes may still occur, but must be explicitly document
   - Create git tag: `sdk-python-vX.Y.Z`
 5. **Publish**
   - Push the version tag; the CI release workflow publishes the package to PyPI.
+6. **Cross-surface consistency gate**
+  - Ensure `sdk/python/README.md`, `adapters/python/openai/README.md`, and `servers/mcp/README.md` use aligned method names and field names
+  - Ensure outcome statuses in snippets are valid backend statuses
+  - Ensure primary examples use `actions.submit` as Free BETA default and present `submit_v2` as advanced mode
+7. **Backend contract gate**
+  - Verify SDK resource paths still match `bighub-core` routes for actions/rules/outcomes/auth
+  - Verify plan-gated endpoint notes are still accurate (`submit_v2`, observer stats, dry-run validation, etc.)
 
-## Current release example
+## Release template example
 
-For the current patch release:
+For any release `X.Y.Z`:
 
-1. Set `sdk/python/src/bighub/version.py` to `0.2.6`
-2. Set `sdk/python/pyproject.toml` version to `0.2.6`
+1. Set `sdk/python/src/bighub/version.py` to `X.Y.Z`
+2. Set `sdk/python/pyproject.toml` version to `X.Y.Z`
 3. Ensure `CHANGELOG.md` has:
    - `[Unreleased]` section at top
-   - `[0.2.6] - 2026-03-08` section finalized
+   - `[X.Y.Z] - YYYY-MM-DD` section finalized
 4. Run:
    - `pytest -q sdk/python/tests`
    - `python -m build sdk/python`
    - `python -m twine check sdk/python/dist\*`
 5. Create and push tag:
-   - `sdk-python-v0.2.6`
+   - `sdk-python-vX.Y.Z`
 
 ## Git tag convention
 
@@ -57,6 +64,8 @@ For the current patch release:
 - `sdk-python-v0.2.1`
 - `sdk-python-v0.2.4`
 - `sdk-python-v0.2.6`
+- `sdk-python-v0.3.0`
+- `sdk-python-v3.0.0`
 - `sdk-python-v1.0.0`
 
 ## Branch policy

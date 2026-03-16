@@ -341,3 +341,45 @@ def test_sync_auth_events_approvals_paths() -> None:
     assert approvals == []
     assert resolved["status"] == "approved"
     client.close()
+
+
+def test_sync_contract_aliases_for_actions_retrieval_and_ingest_reconcile() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/actions/submit" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["context"] == {"order_id": "ord_1"}
+            assert "metadata" not in payload
+            return httpx.Response(200, json={"allowed": True})
+        if request.url.path == "/retrieval/query" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["strategy"] == "balanced"
+            return httpx.Response(200, json={"status": "ok"})
+        if request.url.path == "/ingest/reconcile" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["key_name"] == "request_id"
+            assert payload["key_value"] == "req_123"
+            assert payload["outcome"]["event_type"] == "OUTCOME_OBSERVED"
+            return httpx.Response(200, json={"status": "reconciled"})
+        raise AssertionError(f"Unexpected {request.method} {request.url.path}")
+
+    client = BighubClient(api_key="bhk_test")
+    client._transport._client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    submit = client.actions.submit(
+        action="refund_full",
+        metadata={"order_id": "ord_1"},
+    )
+    retrieval = client.retrieval.query(
+        domain="customer_transactions",
+        action="refund_full",
+        strategy="balanced",
+    )
+    reconcile = client.ingest.reconcile(
+        request_id="req_123",
+        outcome={"event_type": "OUTCOME_OBSERVED", "outcome": {"status": "SUCCESS"}},
+    )
+
+    assert submit["allowed"] is True
+    assert retrieval["status"] == "ok"
+    assert reconcile["status"] == "reconciled"
+    client.close()

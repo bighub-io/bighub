@@ -54,7 +54,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_submit",
     {
-      description: "Validate an action via /actions/submit.",
+      description: "Evaluate an action via /actions/submit.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         action: z.string(),
@@ -62,16 +62,17 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
         value: z.number().optional(),
         target: z.string().optional(),
         domain: z.string().optional(),
+        context: JsonObjectSchema.optional(),
         metadata: JsonObjectSchema.optional(),
         idempotency_key: z.string().optional(),
       },
     },
-    async ({ action, actor, value, target, domain, metadata, idempotency_key }) =>
+    async ({ action, actor, value, target, domain, context, metadata, idempotency_key }) =>
       toResult(
         await client.request({
           method: "POST",
           path: "/actions/submit",
-          body: cleanObject({ action, actor, value, target, domain, metadata }),
+          body: cleanObject({ action, actor, value, target, domain, context: context ?? metadata }),
           idempotencyKey: idempotency_key,
         }),
       ),
@@ -80,7 +81,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_submit_v2",
     {
-      description: "Validate an action with pro decision intelligence via /actions/submit/v2.",
+      description: "Evaluate an action via /actions/submit/v2 (advanced mode).",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         payload: JsonObjectSchema,
@@ -101,7 +102,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_dry_run",
     {
-      description: "Run a non-persistent action validation via /actions/submit/dry-run.",
+      description: "Dry-run action evaluation (non-persistent) via /actions/submit/dry-run.",
       inputSchema: {
         payload: JsonObjectSchema,
         idempotency_key: z.string().optional(),
@@ -121,7 +122,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_verify_validation",
     {
-      description: "Verify a previous validation by validation_id.",
+      description: "Verify a previous evaluation by validation_id.",
       inputSchema: { validation_id: z.string() },
     },
     async ({ validation_id }) =>
@@ -163,7 +164,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_memory_ingest",
     {
-      description: "Ingest scored execution events into Future Memory.",
+      description: "Ingest scored execution events into decision memory.",
       inputSchema: {
         events: z.array(JsonObjectSchema),
         source: z.string().default("adapter"),
@@ -199,7 +200,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_memory_context",
     {
-      description: "Read Future Memory context window and rates.",
+      description: "Read decision memory context window and rates.",
       inputSchema: {
         window_hours: z.number().int().default(24),
         tool: z.string().optional(),
@@ -222,7 +223,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_memory_refresh_aggregates",
     {
-      description: "Refresh Future Memory aggregates.",
+      description: "Refresh decision memory aggregates.",
       inputSchema: {
         concurrent: z.boolean().default(false),
         window_hours: z.number().int().default(24),
@@ -241,7 +242,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_memory_recommendations",
     {
-      description: "Compute Future Memory policy recommendations.",
+      description: "Compute decision memory recommendations.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         window_hours: z.number().int().default(24),
@@ -272,7 +273,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_rules_create",
     {
-      description: "Create a policy rule.",
+      description: "Create a boundary rule.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         payload: JsonObjectSchema,
@@ -293,7 +294,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_rules_list",
     {
-      description: "List policy rules.",
+      description: "List boundary rules.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         status: z.string().optional(),
@@ -366,7 +367,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_rules_pause",
     {
-      description: "Pause rule enforcement for a rule_id.",
+      description: "Pause a rule by rule_id.",
       inputSchema: {
         rule_id: z.string(),
         idempotency_key: z.string().optional(),
@@ -561,7 +562,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       outputSchema: AnyOutputSchema,
       inputSchema: {
         request_id: z.string(),
-        resolution: z.enum(["approved", "rejected"]),
+        resolution: z.enum(["approved", "denied", "rejected"]),
         comment: z.string().optional(),
       },
     },
@@ -570,7 +571,10 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
         await client.request({
           method: "POST",
           path: `/approvals/${request_id}/resolve`,
-          body: cleanObject({ resolution, comment }),
+          body: cleanObject({
+            resolution: resolution === "rejected" ? "denied" : resolution,
+            comment,
+          }),
         }),
       ),
   );
@@ -899,7 +903,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     "bighub_auth_refresh",
     {
       description: "Rotate auth tokens with refresh token.",
-      inputSchema: { refresh_token: z.string() },
+      inputSchema: { refresh_token: z.string().optional() },
     },
     async ({ refresh_token }) =>
       toResult(await client.request({ method: "POST", path: "/auth/refresh", body: { refresh_token } })),
@@ -909,9 +913,971 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     "bighub_auth_logout",
     {
       description: "Invalidate a refresh token.",
-      inputSchema: { refresh_token: z.string() },
+      inputSchema: { refresh_token: z.string().optional() },
     },
     async ({ refresh_token }) =>
       toResult(await client.request({ method: "POST", path: "/auth/logout", body: { refresh_token } })),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Cases — Decision case lifecycle
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_cases_create",
+    {
+      description: "Create a decision case.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string(),
+        action: JsonObjectSchema,
+        context: JsonObjectSchema.optional(),
+        simulation: JsonObjectSchema.optional(),
+        verdict: JsonObjectSchema.optional(),
+        goal_summary: z.string().optional(),
+        trigger_source: z.string().optional(),
+        actor_type: z.string().default("AI_AGENT"),
+        actor_id: z.string().optional(),
+        agent_model: z.string().optional(),
+        refs: JsonObjectSchema.optional(),
+        tags: z.array(z.string()).optional(),
+      },
+    },
+    async ({ domain, action, context, simulation, verdict, goal_summary, trigger_source, actor_type, actor_id, agent_model, refs, tags }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/cases",
+          body: cleanObject({ domain, action, context, simulation, verdict, goal_summary, trigger_source, actor_type, actor_id, agent_model, refs, tags }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_cases_get",
+    {
+      description: "Get a decision case by ID.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { case_id: z.string() },
+    },
+    async ({ case_id }) => toResult(await client.request({ method: "GET", path: `/cases/${case_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_cases_list",
+    {
+      description: "List decision cases with filters.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+        action: z.string().optional(),
+        verdict: z.string().optional(),
+        outcome_status: z.string().optional(),
+        has_outcome: z.boolean().optional(),
+        min_risk_score: z.number().optional(),
+        max_risk_score: z.number().optional(),
+        limit: z.number().int().default(50),
+        offset: z.number().int().default(0),
+      },
+    },
+    async ({ domain, tool, action, verdict, outcome_status, has_outcome, min_risk_score, max_risk_score, limit, offset }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/cases",
+          query: cleanObject({ domain, tool, action, verdict, outcome_status, has_outcome, min_risk_score, max_risk_score, limit, offset }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_cases_report_outcome",
+    {
+      description: "Report a real-world outcome for a decision case.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_id: z.string(),
+        status: z.string(),
+        description: z.string().optional(),
+        details: JsonObjectSchema.optional(),
+        actual_impact: JsonObjectSchema.optional(),
+        correction_needed: z.boolean().default(false),
+        rollback_performed: z.boolean().default(false),
+        revenue_impact: z.number().optional(),
+      },
+    },
+    async ({ case_id, status, description, details, actual_impact, correction_needed, rollback_performed, revenue_impact }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: `/cases/${case_id}/outcome`,
+          body: cleanObject({ status, description, details, actual_impact, correction_needed, rollback_performed, revenue_impact }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_cases_precedents",
+    {
+      description: "Get precedent intelligence for a proposed action.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string(),
+        action: z.string(),
+        tool: z.string().optional(),
+        actor_type: z.string().default("AI_AGENT"),
+        risk_score: z.number().optional(),
+        axes: JsonObjectSchema.optional(),
+      },
+    },
+    async ({ domain, action, tool, actor_type, risk_score, axes }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/cases/precedents",
+          body: cleanObject({ domain, action, tool, actor_type, risk_score, axes }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_cases_calibration",
+    {
+      description: "Get calibration metrics (prediction vs reality) for cases.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+      },
+    },
+    async ({ domain }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/cases/calibration",
+          query: cleanObject({ domain }),
+        }),
+      ),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Outcomes — Report and analyze what actually happened after execution
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_outcomes_report",
+    {
+      description: "Report a real-world outcome linked to a decision.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        status: z.string(),
+        request_id: z.string().optional(),
+        case_id: z.string().optional(),
+        validation_id: z.string().optional(),
+        description: z.string().optional(),
+        details: JsonObjectSchema.optional(),
+        actual_impact: JsonObjectSchema.optional(),
+        correction_needed: z.boolean().default(false),
+        rollback_performed: z.boolean().default(false),
+        revenue_impact: z.number().optional(),
+        observed_at: z.string().optional(),
+        reported_by: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      },
+    },
+    async ({ status, request_id, case_id, validation_id, description, details, actual_impact, correction_needed, rollback_performed, revenue_impact, observed_at, reported_by, tags }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/outcomes/report",
+          body: cleanObject({ status, request_id, case_id, validation_id, description, details, actual_impact, correction_needed, rollback_performed, revenue_impact, observed_at, reported_by, tags }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_report_batch",
+    {
+      description: "Batch report outcomes (max 100).",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        outcomes: z.array(JsonObjectSchema),
+      },
+    },
+    async ({ outcomes }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/outcomes/report/batch",
+          body: { outcomes },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_get",
+    {
+      description: "Get outcome by request_id.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { request_id: z.string() },
+    },
+    async ({ request_id }) =>
+      toResult(await client.request({ method: "GET", path: `/outcomes/${request_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_timeline",
+    {
+      description: "Get full outcome timeline for a request.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { request_id: z.string() },
+    },
+    async ({ request_id }) =>
+      toResult(await client.request({ method: "GET", path: `/outcomes/${request_id}/timeline` })),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_pending",
+    {
+      description: "List decisions still awaiting outcome reports.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        min_age_hours: z.number().int().optional(),
+        limit: z.number().int().default(50),
+      },
+    },
+    async ({ min_age_hours, limit }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/outcomes/pending/list",
+          query: cleanObject({ min_age_hours, limit }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_analytics",
+    {
+      description: "Outcome analytics summary.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+        since: z.string().optional(),
+        until: z.string().optional(),
+      },
+    },
+    async ({ domain, since, until }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/outcomes/analytics/summary",
+          query: cleanObject({ domain, since, until }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_taxonomy",
+    {
+      description: "Supported outcome status taxonomy.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/outcomes/taxonomy" })),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Precedents — Case-based reasoning from past decisions
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_precedents_query",
+    {
+      description: "Query similar past decision cases.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string(),
+        action: z.string(),
+        tool: z.string().optional(),
+        actor_type: z.string().default("AI_AGENT"),
+        axes: JsonObjectSchema.optional(),
+        risk_score: z.number().optional(),
+        intent: z.string().optional(),
+        min_similarity: z.number().optional(),
+        max_results: z.number().int().optional(),
+        require_outcome: z.boolean().optional(),
+      },
+    },
+    async ({ domain, action, tool, actor_type, axes, risk_score, intent, min_similarity, max_results, require_outcome }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/precedents/query",
+          body: cleanObject({ domain, action, tool, actor_type, axes, risk_score, intent, min_similarity, max_results, require_outcome }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_precedents_signals",
+    {
+      description: "Get aggregated precedent signals for an action.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string(),
+        action: z.string(),
+        tool: z.string().optional(),
+        actor_type: z.string().default("AI_AGENT"),
+        axes: JsonObjectSchema.optional(),
+        risk_score: z.number().optional(),
+      },
+    },
+    async ({ domain, action, tool, actor_type, axes, risk_score }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/precedents/signals",
+          body: cleanObject({ domain, action, tool, actor_type, axes, risk_score }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_precedents_stats",
+    {
+      description: "Get precedent engine statistics.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/precedents/stats" })),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Calibration — Prediction vs reality
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_calibration_report",
+    {
+      description: "Calibration report: how well do predicted risk scores match real outcomes.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+        risk_band: z.string().optional(),
+      },
+    },
+    async ({ domain, tool, risk_band }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/calibration/report",
+          query: cleanObject({ domain, tool, risk_band }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_calibration_reliability",
+    {
+      description: "Calibration reliability diagram data.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+      },
+    },
+    async ({ domain, tool }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/calibration/reliability",
+          query: cleanObject({ domain, tool }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_calibration_drift",
+    {
+      description: "Detect calibration drift over time.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        window_days: z.number().int().optional(),
+        domain: z.string().optional(),
+      },
+    },
+    async ({ window_days, domain }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/calibration/drift",
+          query: cleanObject({ window_days, domain }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_calibration_breakdown",
+    {
+      description: "Calibration breakdown by dimension.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        by: z.string().default("domain"),
+      },
+    },
+    async ({ by }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/calibration/breakdown",
+          query: { by },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_calibration_feedback",
+    {
+      description: "Calibration feedback and improvement suggestions.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+      },
+    },
+    async ({ domain }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/calibration/feedback",
+          query: cleanObject({ domain }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_calibration_observe",
+    {
+      description: "Submit a calibration observation (predicted risk vs real outcome).",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_id: z.string(),
+        predicted_risk: z.number(),
+        outcome_status: z.string(),
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+        action: z.string().optional(),
+        actor_type: z.string().optional(),
+        verdict: z.string().optional(),
+      },
+    },
+    async ({ case_id, predicted_risk, outcome_status, domain, tool, action, actor_type, verdict }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/calibration/observe",
+          body: cleanObject({ case_id, predicted_risk, outcome_status, domain, tool, action, actor_type, verdict }),
+        }),
+      ),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Retrieval — Multi-signal decision retrieval engine
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_retrieval_query",
+    {
+      description: "Multi-signal decision retrieval: find relevant past cases for an upcoming action.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string(),
+        action: z.string(),
+        tool: z.string().optional(),
+        actor_type: z.string().default("AI_AGENT"),
+        axes: JsonObjectSchema.optional(),
+        risk_score: z.number().optional(),
+        strategy: z.string().default("balanced"),
+        strategy_name: z.string().optional(),
+      },
+    },
+    async ({ domain, action, tool, actor_type, axes, risk_score, strategy, strategy_name }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/retrieval/query",
+          body: cleanObject({
+            domain,
+            action,
+            tool,
+            actor_type,
+            axes,
+            risk_score,
+            strategy: strategy_name ?? strategy,
+            strategy_name: strategy_name ?? strategy,
+          }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_retrieval_query_explained",
+    {
+      description: "Retrieval query with full scoring explanation.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string(),
+        action: z.string(),
+        tool: z.string().optional(),
+        actor_type: z.string().default("AI_AGENT"),
+        axes: JsonObjectSchema.optional(),
+        risk_score: z.number().optional(),
+        strategy: z.string().default("balanced"),
+        strategy_name: z.string().optional(),
+      },
+    },
+    async ({ domain, action, tool, actor_type, axes, risk_score, strategy, strategy_name }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/retrieval/query/explained",
+          body: cleanObject({
+            domain,
+            action,
+            tool,
+            actor_type,
+            axes,
+            risk_score,
+            strategy: strategy_name ?? strategy,
+            strategy_name: strategy_name ?? strategy,
+          }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_retrieval_strategies",
+    {
+      description: "List available retrieval strategies.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/retrieval/strategies" })),
+  );
+
+  server.registerTool(
+    "bighub_retrieval_strategy",
+    {
+      description: "Get details of a retrieval strategy by name.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { name: z.string() },
+    },
+    async ({ name }) =>
+      toResult(await client.request({ method: "GET", path: `/retrieval/strategy/${name}` })),
+  );
+
+  server.registerTool(
+    "bighub_retrieval_index_case",
+    {
+      description: "Index a decision case into the retrieval engine.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_id: z.string(),
+        org_id: z.string(),
+        tool: z.string(),
+        action: z.string(),
+        domain: z.string(),
+        actor_type: z.string().default("AI_AGENT"),
+        risk_score: z.number().default(0.0),
+        verdict: z.string().default("ALLOWED"),
+        axes: JsonObjectSchema.optional(),
+      },
+    },
+    async ({ case_id, org_id, tool, action, domain, actor_type, risk_score, verdict, axes }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/retrieval/index",
+          body: cleanObject({ case_id, org_id, tool, action, domain, actor_type, risk_score, verdict, axes }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_retrieval_stats",
+    {
+      description: "Get retrieval engine statistics.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/retrieval/stats" })),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Features — Decision feature layer
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_features_compute",
+    {
+      description: "Compute decision features for a case.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_id: z.string(),
+        org_id: z.string(),
+        case_data: JsonObjectSchema,
+        precedent_data: JsonObjectSchema.optional(),
+        advisory_data: JsonObjectSchema.optional(),
+      },
+    },
+    async ({ case_id, org_id, case_data, precedent_data, advisory_data }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/features/compute",
+          body: cleanObject({ case_id, org_id, case_data, precedent_data, advisory_data }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_features_snapshot",
+    {
+      description: "Create a versioned feature snapshot for a case.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_id: z.string(),
+        tag: z.string().optional(),
+      },
+    },
+    async ({ case_id, tag }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/features/snapshot",
+          body: cleanObject({ case_id, tag }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_features_get_snapshot",
+    {
+      description: "Get a feature snapshot by ID.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { snapshot_id: z.string() },
+    },
+    async ({ snapshot_id }) =>
+      toResult(await client.request({ method: "GET", path: `/features/snapshot/${snapshot_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_features_list_snapshots",
+    {
+      description: "List feature snapshots.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        tag: z.string().optional(),
+        case_id: z.string().optional(),
+      },
+    },
+    async ({ tag, case_id }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/features/snapshots",
+          query: cleanObject({ tag, case_id }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_features_explain",
+    {
+      description: "Explain computed features for a case.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_id: z.string(),
+        feature_key: z.string().optional(),
+      },
+    },
+    async ({ case_id, feature_key }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: feature_key ? `/features/explain/${case_id}/${feature_key}` : `/features/explain/${case_id}`,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_features_export",
+    {
+      description: "Export all features for a case.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { case_id: z.string() },
+    },
+    async ({ case_id }) =>
+      toResult(await client.request({ method: "GET", path: `/features/export/${case_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_features_schema",
+    {
+      description: "Get the feature schema (all defined features and types).",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/features/schema" })),
+  );
+
+  server.registerTool(
+    "bighub_features_stats",
+    {
+      description: "Get feature layer statistics.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/features/stats" })),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Insights — Patterns, advisories, and action profiles
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_insights_advise",
+    {
+      description: "Get decision advisory for a proposed action based on learned patterns.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        tool: z.string(),
+        action: z.string(),
+        domain: z.string(),
+        actor_type: z.string().default("AI_AGENT"),
+        risk_band: z.string().optional(),
+      },
+    },
+    async ({ tool, action, domain, actor_type, risk_band }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/insights/advise",
+          body: cleanObject({ tool, action, domain, actor_type, risk_band }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_insights_patterns",
+    {
+      description: "List detected decision patterns.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        pattern_type: z.string().optional(),
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+        min_severity: z.string().optional(),
+      },
+    },
+    async ({ pattern_type, domain, tool, min_severity }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/insights/patterns",
+          query: cleanObject({ pattern_type, domain, tool, min_severity }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_insights_learn",
+    {
+      description: "Trigger pattern learning from accumulated cases.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/insights/patterns/learn" })),
+  );
+
+  server.registerTool(
+    "bighub_insights_profile",
+    {
+      description: "Get action quality profile for a tool/action/domain.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        tool: z.string().optional(),
+        action: z.string().optional(),
+        domain: z.string().optional(),
+      },
+    },
+    async ({ tool, action, domain }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/insights/profile",
+          query: cleanObject({ tool, action, domain }),
+        }),
+      ),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Simulations — Chronos simulation vault
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_simulations_list",
+    {
+      description: "List persisted simulation snapshots.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+        with_outcome: z.boolean().optional(),
+        limit: z.number().int().default(50),
+      },
+    },
+    async ({ domain, tool, with_outcome, limit }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/simulations",
+          query: cleanObject({ domain, tool, with_outcome, limit }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_simulations_get",
+    {
+      description: "Get a simulation snapshot by ID.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { snapshot_id: z.string() },
+    },
+    async ({ snapshot_id }) =>
+      toResult(await client.request({ method: "GET", path: `/simulations/${snapshot_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_simulations_by_request",
+    {
+      description: "Get simulation snapshot for a given request_id.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { request_id: z.string() },
+    },
+    async ({ request_id }) =>
+      toResult(await client.request({ method: "GET", path: `/simulations/by-request/${request_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_simulations_compare",
+    {
+      description: "Compare simulation prediction vs real outcome for a request.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { request_id: z.string() },
+    },
+    async ({ request_id }) =>
+      toResult(await client.request({ method: "GET", path: `/simulations/by-request/${request_id}/compare` })),
+  );
+
+  server.registerTool(
+    "bighub_simulations_accuracy",
+    {
+      description: "Simulation accuracy metrics.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().optional(),
+        tool: z.string().optional(),
+      },
+    },
+    async ({ domain, tool }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/simulations/accuracy",
+          query: cleanObject({ domain, tool }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_simulations_stats",
+    {
+      description: "Get simulation vault statistics.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/simulations/stats" })),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Learning — Outcome-to-learning pipeline management
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "bighub_learning_strategy",
+    {
+      description: "Get current learning strategy version and configuration.",
+      inputSchema: {},
+    },
+    async () => toResult(await client.request({ method: "GET", path: "/ops/learning/strategy" })),
+  );
+
+  server.registerTool(
+    "bighub_learning_runs",
+    {
+      description: "List recent learning pipeline runs.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        limit: z.number().int().default(50),
+      },
+    },
+    async ({ limit }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ops/learning/runs",
+          query: { limit },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_learning_recompute",
+    {
+      description: "Trigger recomputation of learning artifacts for a scope.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().default(""),
+        action_family: z.string().default(""),
+        force: z.boolean().default(false),
+        limit: z.number().int().default(5000),
+        async_mode: z.boolean().default(true),
+      },
+    },
+    async ({ domain, action_family, force, limit, async_mode }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/ops/learning/recompute",
+          body: { domain, action_family, force, limit, async_mode },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_learning_backfill",
+    {
+      description: "Backfill learning artifacts from historical outcomes.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().default(""),
+        action_family: z.string().default(""),
+        force: z.boolean().default(false),
+        limit: z.number().int().default(5000),
+        async_mode: z.boolean().default(true),
+      },
+    },
+    async ({ domain, action_family, force, limit, async_mode }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/ops/learning/backfill",
+          body: { domain, action_family, force, limit, async_mode },
+        }),
+      ),
   );
 }

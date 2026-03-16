@@ -32,12 +32,12 @@ async function main(): Promise<void> {
     bearerToken,
     timeoutMs: parseNumberEnv("BIGHUB_TIMEOUT_MS", 15000),
     maxRetries: parseNumberEnv("BIGHUB_MAX_RETRIES", 2),
-    userAgent: "bighub-mcp/0.1.0",
+    userAgent: "bighub-mcp/0.2.0",
   });
 
   const server = new McpServer({
     name: "bighub-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   registerBighubTools(server, client);

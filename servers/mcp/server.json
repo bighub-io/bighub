@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.bighub/mcp",
   "title": "BIGHUB",
-  "description": "Decision intelligence for AI agents. Simulate, score, enforce, and learn.",
-  "version": "0.1.5",
+  "description": "Decision learning for AI agent actions. Evaluate, score, decide, and learn from outcomes.",
+  "version": "0.2.0",
   "websiteUrl": "https://bighub.io",
   "repository": {
     "url": "https://github.com/bighub-io/bighub",
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@bighub/bighub-mcp",
-      "version": "0.1.5",
+      "version": "0.2.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

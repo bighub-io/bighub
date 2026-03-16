@@ -70,4 +70,46 @@ describe("registerBighubTools", () => {
       expect(entry?.config.outputSchema, `${toolName} should define outputSchema`).toBeDefined();
     }
   });
+
+  it("maps legacy metadata and strategy_name to backend contract fields", async () => {
+    const fakeServer = new FakeServer();
+    const request = vi.fn(async () => ({}));
+    const fakeClient = { request } as unknown as BighubHttpClient;
+
+    registerBighubTools(fakeServer as never, fakeClient);
+
+    const submitTool = fakeServer.tools.get("bighub_actions_submit");
+    const retrievalTool = fakeServer.tools.get("bighub_retrieval_query");
+
+    await submitTool?.handler({
+      action: "refund_full",
+      actor: "AI_AGENT",
+      metadata: { order_id: "ord_1" },
+    });
+    await retrievalTool?.handler({
+      domain: "customer_transactions",
+      action: "refund_full",
+      strategy_name: "balanced",
+    });
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        path: "/actions/submit",
+        body: expect.objectContaining({
+          context: { order_id: "ord_1" },
+        }),
+      }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        path: "/retrieval/query",
+        body: expect.objectContaining({
+          strategy: "balanced",
+          strategy_name: "balanced",
+        }),
+      }),
+    );
+  });
 });

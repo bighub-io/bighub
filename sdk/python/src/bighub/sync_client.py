@@ -7,9 +7,19 @@ from .resources.actions import ActionsAPI
 from .resources.approvals import ApprovalsAPI
 from .resources.api_keys import APIKeysAPI
 from .resources.auth import AuthAPI
+from .resources.calibration import CalibrationAPI
+from .resources.cases import CasesAPI
 from .resources.events import EventsAPI
+from .resources.features import FeaturesAPI
+from .resources.ingest import IngestAPI
+from .resources.insights import InsightsAPI
 from .resources.kill_switch import KillSwitchAPI
+from .resources.learning import LearningAPI
+from .resources.outcomes import OutcomesAPI
+from .resources.precedents import PrecedentsAPI
+from .resources.retrieval import RetrievalAPI
 from .resources.rules import RulesAPI
+from .resources.simulations import SimulationsAPI
 from .resources.webhooks import WebhooksAPI
 from .transport import RetryConfig, SyncTransport
 from .version import __version__
@@ -18,8 +28,10 @@ from .version import __version__
 @dataclass
 class BighubClient:
     """
-    Official sync client for governing AI agent execution with the BIGHUB
-    intelligence and control layer.
+    Official sync client for the BIGHUB decision learning platform.
+
+    Evaluate agent actions before execution, report real outcomes,
+    and let the system learn from experience.
     """
 
     base_url: str = "https://api.bighub.io"
@@ -38,12 +50,29 @@ class BighubClient:
             retry=RetryConfig(max_retries=self.max_retries),
             user_agent=self.user_agent or f"bighub-python/{__version__}",
         )
+        # Core decision loop
         self.actions = ActionsAPI(self._transport)
-        self.auth = AuthAPI(self._transport)
+        self.cases = CasesAPI(self._transport)
+        self.outcomes = OutcomesAPI(self._transport)
+        self.ingest = IngestAPI(self._transport)
+
+        # Decision learning
+        self.precedents = PrecedentsAPI(self._transport)
+        self.calibration = CalibrationAPI(self._transport)
+        self.retrieval = RetrievalAPI(self._transport)
+        self.insights = InsightsAPI(self._transport)
+        self.features = FeaturesAPI(self._transport)
+        self.simulations = SimulationsAPI(self._transport)
+        self.learning = LearningAPI(self._transport)
+
+        # Configuration and controls
         self.rules = RulesAPI(self._transport)
         self.kill_switch = KillSwitchAPI(self._transport)
-        self.events = EventsAPI(self._transport)
         self.approvals = ApprovalsAPI(self._transport)
+
+        # Platform
+        self.auth = AuthAPI(self._transport)
+        self.events = EventsAPI(self._transport)
         self.api_keys = APIKeysAPI(self._transport)
         self.webhooks = WebhooksAPI(self._transport)
 

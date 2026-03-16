@@ -15,7 +15,7 @@ from ..types import (
 
 
 class RulesAPI:
-    """Sync API for rule lifecycle and governance endpoints."""
+    """Sync API for rule lifecycle endpoints."""
 
     def __init__(self, transport: SyncTransportProtocol) -> None:
         self._transport = transport
@@ -230,7 +230,7 @@ class RulesAPI:
 
 
 class AsyncRulesAPI:
-    """Async API for rule lifecycle and governance endpoints."""
+    """Async API for rule lifecycle endpoints."""
 
     def __init__(self, transport: AsyncTransportProtocol) -> None:
         self._transport = transport

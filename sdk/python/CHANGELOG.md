@@ -8,6 +8,61 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 - No unreleased entries at this time.
 
+## [3.0.1] - 2026-03-16
+
+### Changed
+
+- Added missing project links in PyPI metadata:
+  - GitHub repository: `https://github.com/bighub-io/bighub`
+  - MCP package: `https://www.npmjs.com/package/@bighub/bighub-mcp`
+
+## [3.0.0] - 2026-03-12
+
+### Changed
+
+- Bumped the Python SDK to major version `3.0.0` for the new decision learning release line.
+- Aligned SDK examples with current backend contracts:
+  - cross-plan evaluation defaults to `actions.submit(...)`
+  - outcome examples use valid statuses supported by `/outcomes/report`
+  - examples now use current domain values (`customer_transactions`).
+- Hardened release readiness docs with explicit cross-surface and backend-contract verification gates.
+
+### Packaging
+
+- Added a package-local `LICENSE` file so `python -m build` and `twine check` pass reliably from `sdk/python`.
+
+## [0.3.0] - 2026-03-15
+
+### Changed
+
+- Repositioned the SDK around the BIGHUB decision learning loop:
+  - evaluate actions before execution
+  - execute in runtime
+  - report real outcomes
+  - learn from similar past cases.
+- Rewrote SDK documentation around DecisionCase, outcome-linked learning, and learned signals.
+- Updated SDK wording to consistently prefer:
+  - "evaluate/evaluation" for action decisions
+  - decision learning terminology over legacy policy-centric language.
+- Updated links and package references to match the current repository entry points.
+
+### Added
+
+- Complete decision learning coverage in a single SDK surface (sync + async):
+  - `cases`: create/list/get, report outcome, case-level precedents and calibration
+  - `outcomes`: report, batch report, timeline, pending, analytics, taxonomy
+  - `precedents`: query and aggregate signals from similar past decisions
+  - `calibration`: report/reliability/drift/breakdown/feedback/observe
+  - `retrieval`: multi-signal retrieval strategies and explained retrieval
+  - `features`: feature compute/snapshot/explain/export/schema/stats
+  - `insights`: advisories, patterns, and action profiles
+  - `simulations`: simulation vault queries and prediction-vs-reality comparison
+  - `learning`: strategy/runs/recompute/backfill controls.
+
+### Compatibility
+
+- Synced package metadata and runtime version to `0.3.0` so publish metadata, import-time version, and docs remain consistent.
+
 ## [0.2.6] - 2026-03-09
 
 ### Changed

@@ -1,6 +1,6 @@
 # Contributing to BIGHUB
 
-Thank you for your interest in contributing to BIGHUB — decision intelligence for autonomous AI agents.
+Thank you for your interest in contributing to BIGHUB — decision learning for AI agent actions.
 
 ## Repository structure
 
@@ -24,4 +24,4 @@ Thank you for your interest in contributing to BIGHUB — decision intelligence 
 
 ## Code of conduct
 
-Be respectful and constructive. We aim to keep the community inclusive and focused on building smarter decision intelligence for AI agents.
+Be respectful and constructive. We aim to keep the community inclusive and focused on building better decision learning for AI agents.

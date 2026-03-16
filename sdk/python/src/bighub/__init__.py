@@ -12,8 +12,18 @@ from .models import (
     WebhookUpdateModel,
 )
 from .sync_client import BighubClient
+from .types import (
+    DecisionMemoryEvent,
+    DecisionMemoryIngestRequest,
+    DecisionMemoryRecommendationsRequest,
+    FutureMemoryEvent,
+    FutureMemoryIngestRequest,
+    FutureMemoryRecommendationsRequest,
+)
 from .version import __version__
 from .webhooks import verify_chronos_signature
+
+verify_webhook_signature = verify_chronos_signature
 
 __all__ = [
     "__version__",
@@ -33,5 +43,12 @@ __all__ = [
     "APIKeyCreateModel",
     "AuthCredentialsModel",
     "ApprovalResolveModel",
+    "verify_webhook_signature",
     "verify_chronos_signature",
+    "DecisionMemoryEvent",
+    "DecisionMemoryIngestRequest",
+    "DecisionMemoryRecommendationsRequest",
+    "FutureMemoryEvent",
+    "FutureMemoryIngestRequest",
+    "FutureMemoryRecommendationsRequest",
 ]

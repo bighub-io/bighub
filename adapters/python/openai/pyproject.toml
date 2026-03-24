@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bighub-openai"
-version = "3.0.1"
+version = "3.1.0"
 description = "OpenAI adapter for decision learning for AI agent actions with BIGHUB."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,7 +27,7 @@ classifiers = [
   "Typing :: Typed"
 ]
 dependencies = [
-  "bighub>=3.0.1,<4.0.0",
+  "bighub>=3.1.0,<4.0.0",
   "openai>=2.0.0,<3.0.0",
 ]
 

@@ -1,6 +1,6 @@
 {
   "name": "@bighub/bighub-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "mcpName": "io.bighub/mcp",
   "description": "MCP server for decision learning for AI agent actions with BIGHUB.",
   "type": "module",

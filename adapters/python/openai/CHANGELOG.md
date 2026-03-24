@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.0] - 2026-03-24
+
+### Changed
+- Repositioned adapter docs to advisory-first decision workflows with exhaustive PyPI-facing coverage.
+- Updated examples to use `runtime` naming and recommendation-first execution patterns.
+- Bumped core SDK compatibility floor to `bighub>=3.1.0,<4.0.0`.
+- Synced package metadata and runtime version to `3.1.0`.
+
 ## [3.0.1] - 2026-03-16
 
 ### Changed

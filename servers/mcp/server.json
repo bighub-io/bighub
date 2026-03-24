@@ -3,7 +3,7 @@
   "name": "io.bighub/mcp",
   "title": "BIGHUB",
   "description": "Decision learning for AI agent actions. Evaluate, score, decide, and learn from outcomes.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "websiteUrl": "https://bighub.io",
   "repository": {
     "url": "https://github.com/bighub-io/bighub",
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@bighub/bighub-mcp",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

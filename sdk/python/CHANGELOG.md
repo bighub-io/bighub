@@ -8,6 +8,14 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 - No unreleased entries at this time.
 
+## [3.1.0] - 2026-03-24
+
+### Changed
+
+- Promoted the advisory-first documentation surface across public SDK docs.
+- Added comprehensive API coverage and examples for the decision loop, outcomes, calibration, retrieval, simulations, and constraints.
+- Synced package metadata and runtime version to `3.1.0`.
+
 ## [3.0.1] - 2026-03-16
 
 ### Changed

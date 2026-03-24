@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.1.1] - 2026-03-24
+
+### Changed
+- Restructured PyPI README: added TL;DR, "When to use bighub-openai", table of contents, and clearer section hierarchy.
+- Bumped core SDK dependency floor to `bighub>=3.1.1,<4.0.0`.
+
 ## [3.1.0] - 2026-03-24
 
 ### Breaking product shift — advisory-first model

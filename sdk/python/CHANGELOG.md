@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 - No unreleased entries at this time.
 
+## [3.1.1] - 2026-03-24
+
+### Changed
+
+- Restructured PyPI README: added TL;DR, "When to use BIGHUB", table of contents, and layered hierarchy (start here / why it's different / platform resources / reference).
+
 ## [3.1.0] - 2026-03-24
 
 ### Breaking product shift — advisory-first model

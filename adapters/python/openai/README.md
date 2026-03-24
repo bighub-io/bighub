@@ -2,13 +2,13 @@
 
 > OpenAI adapter for decision learning on tool calls.
 
-`bighub-openai` connects the OpenAI Responses API to BIGHUB so tool calls are evaluated before execution, receive structured recommendations, and learn from real outcomes.
+`bighub-openai` connects the OpenAI Responses API to BIGHUB so tool calls are evaluated before execution, receive structured recommendations, and learn from real outcomes automatically.
 
 ```text
 OpenAI Responses API  →  bighub-openai          →  BIGHUB
 tool call             →  evaluate                →  recommendation + confidence + rationale
 agent / runtime acts  →  execution or escalation
-real outcome          →  report                  →  future recommendations improve
+real outcome          →  report (automatic)      →  future recommendations improve
 ```
 
 ---
@@ -55,8 +55,11 @@ response = runtime.run(
     model="gpt-4.1",
 )
 
-print(response["execution"]["last"]["status"])
-# executed | blocked | approval_required
+last = response["execution"]["last"]
+print(last["decision"]["recommendation"])             # proceed, proceed_with_caution, review_recommended, do_not_proceed
+print(last["decision"]["recommendation_confidence"])   # high, medium, low
+print(last["decision"]["risk_score"])                  # 0.0 – 1.0
+print(last["status"])                                  # executed, blocked, approval_required
 ```
 
 `runtime.tool(...)` auto-generates a strict JSON schema from the Python function signature. Use `parameters_schema=...` only when you need custom constraints.
@@ -75,7 +78,7 @@ For every tool call, the adapter follows the same loop:
    - **advisory** — surfaces the recommendation; the agent executes by default
    - **review** — requires approval or escalation before execution
    - **enforced** — applies runtime constraints when configured
-6. The action can later be linked to its real outcome
+6. If the tool executes, the outcome is automatically reported back to BIGHUB
 7. Outcome feedback means future similar tool calls receive better recommendations
 
 ---
@@ -107,15 +110,142 @@ For every tool call, the adapter follows the same loop:
 }
 ```
 
-The primary decision signals are:
+### Primary decision signals
 
-- `recommendation` — what BIGHUB recommends (`proceed`, `proceed_with_caution`, `review_recommended`, `do_not_proceed`)
-- `recommendation_confidence` — confidence level (`high`, `medium`, `low`)
-- `risk_score` — aggregated risk (0–1)
-- `enforcement_mode` — how the recommendation is applied (`advisory`, `review`, `enforced`)
-- `decision_intelligence` — rationale, evidence status, trajectory health
+| Field | Description |
+|---|---|
+| `recommendation` | `proceed`, `proceed_with_caution`, `review_recommended`, `do_not_proceed` |
+| `recommendation_confidence` | `high`, `medium`, `low` |
+| `risk_score` | Aggregated risk (0–1) |
+| `enforcement_mode` | `advisory`, `review`, `enforced` |
+| `decision_intelligence` | Rationale, evidence status, trajectory health, alternatives |
+
+### Execution statuses
+
+| Status | Description |
+|---|---|
+| `executed` | Tool ran successfully |
+| `blocked` | BIGHUB or runtime prevented execution |
+| `approval_required` | Waiting for human approval |
+| `tool_error` | Tool raised an exception during execution |
 
 Legacy fields such as `allowed`, `result`, and `reason` may still be present for backward compatibility, but they are not the primary product surface.
+
+---
+
+## Configuration
+
+### Constructor parameters
+
+```python
+runtime = BighubOpenAI(
+    # Required
+    bighub_api_key="bh_live_xxx",
+    actor="AI_AGENT_001",
+    domain="customer_transactions",
+
+    # OpenAI (one of these is required)
+    openai_api_key="sk-xxx",           # or pass your own client:
+    openai_client=my_openai_client,    # pre-configured OpenAI() instance
+
+    # Decision behavior
+    decision_mode="submit",            # "submit" (default) or "submit_payload"
+    fail_mode="closed",                # "closed" = block on BIGHUB errors, "open" = allow on errors
+    max_tool_rounds=8,                 # max consecutive tool call rounds
+
+    # Outcome & memory (automatic)
+    outcome_reporting=True,            # auto-report tool execution results
+    memory_enabled=True,               # ingest decision memory events
+    on_decision=my_callback,           # called after each BIGHUB decision
+
+    # Provider resilience
+    provider_timeout_seconds=30.0,
+    provider_max_retries=2,
+    provider_retry_backoff_seconds=0.25,
+    provider_circuit_breaker_failures=0,   # 0 = disabled
+    evaluate_retries=2,
+)
+```
+
+### `fail_mode`
+
+| Mode | Behavior when BIGHUB is unreachable |
+|---|---|
+| `closed` (default) | Block execution — fail safe |
+| `open` | Allow execution — fail open |
+
+---
+
+## Registering tools
+
+### Basic
+
+```python
+runtime.tool("send_email", send_email)
+```
+
+### With value and target extraction
+
+```python
+runtime.tool(
+    "transfer_funds",
+    transfer_funds,
+    value_from_args=lambda a: a["amount"],
+    target_from_args=lambda a: a["recipient_id"],
+)
+```
+
+### Per-tool overrides
+
+```python
+runtime.tool(
+    "delete_account",
+    delete_account,
+    domain="account_management",       # override adapter-level domain
+    actor="admin_agent",               # override adapter-level actor
+    action_name="account_deletion",    # custom action name for BIGHUB
+    decision_mode="submit_payload",    # per-tool decision mode
+    metadata_from_args=lambda a: {"priority": "high"},
+)
+```
+
+### Custom JSON schema
+
+```python
+runtime.tool(
+    "approve_loan",
+    approve_loan,
+    parameters_schema={
+        "type": "object",
+        "properties": {
+            "loan_id": {"type": "string"},
+            "amount": {"type": "number", "minimum": 0},
+        },
+        "required": ["loan_id", "amount"],
+        "additionalProperties": False,
+    },
+    strict=True,
+)
+```
+
+### Full API: `register_tool()`
+
+```python
+runtime.register_tool(
+    name="refund_payment",
+    fn=refund_payment,
+    description="Process a customer refund",
+    parameters_schema={...},
+    value_from_args=lambda a: a["amount"],
+    target_from_args=lambda a: a["order_id"],
+    action_name="refund",
+    domain="payments",
+    actor="refund_bot",
+    metadata_from_args=lambda a: {"source": "support_ticket"},
+    decision_mode="submit",
+    strict=True,
+)
+```
 
 ---
 
@@ -150,22 +280,31 @@ for event in runtime.run_stream(
 ```python
 from bighub_openai import AsyncBighubOpenAI
 
-runtime = AsyncBighubOpenAI(
+async with AsyncBighubOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"),
     bighub_api_key=os.getenv("BIGHUB_API_KEY"),
     actor="AI_AGENT_001",
     domain="customer_transactions",
-)
+) as runtime:
+    runtime.tool("refund_payment", refund_payment, value_from_args=lambda a: a["amount"])
 
-response = await runtime.run(
-    messages=[{"role": "user", "content": "Refund order ord_123 for 199.99"}],
-    model="gpt-4.1",
-)
+    response = await runtime.run(
+        messages=[{"role": "user", "content": "Refund order ord_123 for 199.99"}],
+        model="gpt-4.1",
+    )
+
+    # Async streaming
+    async for event in runtime.run_stream(
+        messages=[{"role": "user", "content": "Refund order ord_456"}],
+        model="gpt-4.1",
+    ):
+        if event["type"] == "llm_delta":
+            print(event["delta"], end="")
 ```
 
 ---
 
-## Human-in-the-Loop Approvals
+## Human-in-the-loop approvals
 
 ```python
 result = runtime.run_with_approval(
@@ -178,7 +317,54 @@ result = runtime.run_with_approval(
 )
 ```
 
+When BIGHUB returns `requires_approval`, the adapter pauses execution and calls `on_approval_required` with the decision context. Return `{"resolution": "approved"}` to resume execution, or `{"resolution": "denied"}` to block it.
+
 Run approval callbacks server-side, not in clients, to avoid exposing approval credentials.
+
+---
+
+## Automatic outcome reporting
+
+When `outcome_reporting=True` (default), the adapter automatically reports:
+
+- **Successful execution** → `SUCCESS` outcome with tool output
+- **Blocked execution** → `BLOCKED` outcome
+- **Tool errors** → `FAILURE` outcome with error details
+
+This closes the learning loop without manual instrumentation. Disable with `outcome_reporting=False` if you report outcomes manually via the SDK.
+
+---
+
+## Decision memory
+
+When `memory_enabled=True` (default), the adapter ingests structured events (tool calls, decisions, outcomes) into BIGHUB's decision memory. This enables pattern detection and context-aware recommendations across sessions.
+
+---
+
+## Context manager
+
+```python
+with BighubOpenAI(...) as runtime:
+    runtime.tool("refund_payment", refund_payment)
+    response = runtime.run(...)
+# BIGHUB client is automatically closed
+```
+
+---
+
+## API Reference
+
+### `BighubOpenAI` / `AsyncBighubOpenAI`
+
+| Method | Description |
+|---|---|
+| `tool(name, fn, **kwargs)` | Register a tool (shorthand for `register_tool`) |
+| `register_tool(name, fn, description, parameters_schema, ...)` | Register a tool with full options |
+| `list_tools()` | List registered tools with OpenAI-compatible schemas |
+| `run(messages, model, instructions, temperature, extra_create_args)` | Run a complete evaluated interaction |
+| `run_stream(messages, model, instructions, temperature, extra_create_args)` | Run with streaming events |
+| `run_with_approval(messages, model, ..., on_approval_required)` | Run with human-in-the-loop approval |
+| `close()` | Close the underlying BIGHUB client |
 
 ---
 

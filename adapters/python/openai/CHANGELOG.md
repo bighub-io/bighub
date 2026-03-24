@@ -2,9 +2,20 @@
 
 ## [3.1.0] - 2026-03-24
 
+### Breaking product shift — advisory-first model
+
+- **Moved from `allowed`/`blocked` verdicts to structured recommendations.** The adapter now surfaces `recommendation`, `recommendation_confidence`, `risk_score`, and `decision_intelligence` (including `rationale`, `evidence_status`, `trajectory_health`) as the primary response shape. The agent/runtime decides how to act based on the recommendation and the configured mode (`advisory`, `review`, `enforced`). Legacy fields (`allowed`, `result`) remain for backward compatibility.
+- **Trajectory-aware evaluation.** Tool calls are no longer evaluated as isolated actions. BIGHUB considers prior decisions and their outcomes in the current sequence, producing trajectory-aware recommendations for multi-step agent workflows.
+- **Fail-safe enforcement.** In `enforced` mode, unknown or missing verdicts now default to blocked (fail-safe) instead of silently executing.
+- **Renamed `guard` to `runtime` in all examples** to reflect the advisory-first positioning: BIGHUB is a decision runtime, not a guardrail.
+
+### Added
+
+- Exhaustive PyPI-facing README with full API reference, configuration details, and advanced usage patterns.
+- Automatic outcome reporting with `recommendation_followed` inference.
+
 ### Changed
-- Repositioned adapter docs to advisory-first decision workflows with exhaustive PyPI-facing coverage.
-- Updated examples to use `runtime` naming and recommendation-first execution patterns.
+
 - Bumped core SDK compatibility floor to `bighub>=3.1.0,<4.0.0`.
 - Synced package metadata and runtime version to `3.1.0`.
 

@@ -10,10 +10,22 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 ## [3.1.0] - 2026-03-24
 
+### Breaking product shift — advisory-first model
+
+- **Moved from `allowed`/`blocked` verdicts to structured recommendations.** BIGHUB now returns `recommendation`, `recommendation_confidence`, `risk_score`, `rationale`, and `alternatives` instead of a binary allow/block decision. The agent receives an informed recommendation and decides how to act. Legacy fields (`allowed`, `result`, `reason`) are still present for backward compatibility but are no longer the primary surface.
+- **Trajectory-aware evaluation.** Actions are no longer evaluated in isolation. BIGHUB now considers the full sequence of prior actions, their outcomes, and the current trajectory health (`trajectory_health`, `projected_regret`, `momentum`) to produce context-aware recommendations for multi-step workflows.
+- **Rules renamed to constraints.** The `rules` API surface is now exposed as `constraints` (with backward-compatible aliases). Constraints inform the evaluation as operating limits rather than acting as the primary decision engine.
+- **Outcome-driven learning loop.** The SDK now fully supports the `evaluate → recommend → act → outcome → learn` loop, including `recommendation_followed` tracking and recommendation quality analytics (follow rate, outcome quality by quadrant).
+
+### Added
+
+- Comprehensive API coverage and examples for the full decision loop: outcomes, calibration, retrieval, simulations, precedents, insights, and constraints.
+- New outcome analytics methods: `recommendation_quality()`, `partner_view()`, `get_by_validation()`, `get_by_case()`.
+- New types: `TrajectoryStateDict`, `RoutingVerdictDict`, `ForecastResultDict`, `RecommendationQualityResponse`, and related TypedDicts aligned with backend models.
+- Exhaustive PyPI-facing README with full API reference for all resources.
+
 ### Changed
 
-- Promoted the advisory-first documentation surface across public SDK docs.
-- Added comprehensive API coverage and examples for the decision loop, outcomes, calibration, retrieval, simulations, and constraints.
 - Synced package metadata and runtime version to `3.1.0`.
 
 ## [3.0.1] - 2026-03-16

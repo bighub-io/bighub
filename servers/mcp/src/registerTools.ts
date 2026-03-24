@@ -1294,15 +1294,11 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       },
     },
     async ({ domain, since, until }) => {
-      const params = new URLSearchParams();
-      if (domain) params.set("domain", domain);
-      if (since) params.set("since", since);
-      if (until) params.set("until", until);
-      const qs = params.toString() ? `?${params}` : "";
       return toResult(
         await client.request({
           method: "GET",
-          path: `/outcomes/analytics/recommendation-quality${qs}`,
+          path: `/outcomes/analytics/recommendation-quality`,
+          query: cleanObject({ domain, since, until }),
         }),
       );
     },

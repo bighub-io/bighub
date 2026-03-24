@@ -66,7 +66,7 @@ Most teams start with the first three tools (the core loop):
 
 | Tool | Purpose |
 |---|---|
-| `bighub_actions_submit` | Submit an action for evaluation — returns recommendation, confidence, risk score |
+| `bighub_actions_evaluate` | Submit an action for evaluation — returns recommendation, confidence, risk score |
 | `bighub_outcomes_report` | Report what actually happened after execution |
 | `bighub_precedents_query` | Retrieve similar past cases to inform the next decision |
 | `bighub_calibration_report` | Compare prediction vs reality |
@@ -90,7 +90,7 @@ Most teams start with the first three tools (the core loop):
 Typical tool flow:
 
 ```text
-bighub_actions_submit
+bighub_actions_evaluate
 → agent runtime acts based on recommendation
 → bighub_outcomes_report
 → bighub_precedents_query

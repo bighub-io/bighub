@@ -72,7 +72,7 @@ Most teams start with the first three tools (the core loop):
 | `bighub_calibration_report` | Compare prediction vs reality |
 | `bighub_insights_advise` | Retrieve learned guidance for the next action |
 
-`bighub_actions_submit_v2` is available as an advanced action submission endpoint.
+`bighub_actions_evaluate_payload` is available as an advanced action evaluation endpoint.
 
 ---
 

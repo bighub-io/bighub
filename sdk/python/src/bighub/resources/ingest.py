@@ -119,6 +119,8 @@ class IngestAPI:
         request_id: Optional[str] = None,
         case_id: Optional[str] = None,
         external_ref: Optional[str] = None,
+        tenant_ref: Optional[str] = None,
+        entity_id: Optional[str] = None,
     ) -> JSONDict:
         params: Dict[str, Any] = {}
         if request_id is not None:
@@ -127,6 +129,10 @@ class IngestAPI:
             params["case_id"] = case_id
         if external_ref is not None:
             params["external_ref"] = external_ref
+        if tenant_ref is not None:
+            params["tenant_ref"] = tenant_ref
+        if entity_id is not None:
+            params["entity_id"] = entity_id
         return self._transport.request(
             method="GET", path="/ingest/lifecycle", params=params
         )
@@ -265,6 +271,8 @@ class AsyncIngestAPI:
         request_id: Optional[str] = None,
         case_id: Optional[str] = None,
         external_ref: Optional[str] = None,
+        tenant_ref: Optional[str] = None,
+        entity_id: Optional[str] = None,
     ) -> JSONDict:
         params: Dict[str, Any] = {}
         if request_id is not None:
@@ -273,6 +281,10 @@ class AsyncIngestAPI:
             params["case_id"] = case_id
         if external_ref is not None:
             params["external_ref"] = external_ref
+        if tenant_ref is not None:
+            params["tenant_ref"] = tenant_ref
+        if entity_id is not None:
+            params["entity_id"] = entity_id
         return await self._transport.request(
             method="GET", path="/ingest/lifecycle", params=params
         )

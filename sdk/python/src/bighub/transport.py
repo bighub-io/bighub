@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import logging
 import os
 import random
 import time
@@ -12,7 +13,16 @@ from urllib.parse import urlparse
 import httpx
 
 from .auth import build_auth_headers
-from .exceptions import BighubAPIError, BighubAuthError, BighubNetworkError, BighubTimeoutError
+from .exceptions import (
+    BighubAPIError,
+    BighubAuthError,
+    BighubNetworkError,
+    BighubRateLimitError,
+    BighubTimeoutError,
+    BighubValidationError,
+)
+
+logger = logging.getLogger("bighub")
 
 
 def _join_url(base_url: str, path: str) -> str:
@@ -103,7 +113,8 @@ def parse_response_or_raise(response: httpx.Response) -> Dict[str, Any]:
     code = None
     if isinstance(detail, dict):
         code = detail.get("code")
-    raise BighubAPIError(
+
+    base_kwargs = dict(
         message=response.reason_phrase or "API error",
         status_code=response.status_code,
         request_id=request_id,
@@ -111,6 +122,26 @@ def parse_response_or_raise(response: httpx.Response) -> Dict[str, Any]:
         detail=detail,
         response_body=body if body else None,
     )
+
+    if response.status_code == 429:
+        retry_after: Optional[float] = None
+        raw = response.headers.get("retry-after")
+        if raw:
+            try:
+                retry_after = float(raw)
+            except (ValueError, TypeError):
+                pass
+        raise BighubRateLimitError(**base_kwargs, retry_after_seconds=retry_after)
+
+    if response.status_code == 422:
+        validation_errors = []
+        if isinstance(detail, list):
+            validation_errors = detail
+        elif isinstance(body, dict) and isinstance(body.get("detail"), list):
+            validation_errors = body["detail"]
+        raise BighubValidationError(**base_kwargs, validation_errors=validation_errors)
+
+    raise BighubAPIError(**base_kwargs)
 
 
 class SyncTransport:
@@ -158,7 +189,9 @@ class SyncTransport:
         last_exc: Optional[Exception] = None
         for attempt in range(1, self.retry.max_retries + 2):
             status_code: Optional[int] = None
+            t0 = time.monotonic()
             try:
+                logger.debug("BIGHUB %s %s attempt=%d", method.upper(), path, attempt)
                 response = self._client.request(
                     method=method.upper(),
                     url=url,
@@ -167,17 +200,23 @@ class SyncTransport:
                     headers=req_headers,
                 )
                 status_code = response.status_code
+                elapsed = time.monotonic() - t0
+                logger.debug("BIGHUB %s %s → %d (%.3fs)", method.upper(), path, status_code, elapsed)
                 if _should_retry(status_code=status_code, exc=None) and attempt <= self.retry.max_retries:
-                    time.sleep(self.retry.backoff(attempt))
+                    backoff = self.retry.backoff(attempt)
+                    logger.warning("BIGHUB retry %d/%d %s %s (status=%d) in %.2fs", attempt, self.retry.max_retries, method.upper(), path, status_code, backoff)
+                    time.sleep(backoff)
                     continue
                 return parse_response_or_raise(response)
             except httpx.TimeoutException as exc:
+                logger.warning("BIGHUB timeout %s %s attempt=%d: %s", method.upper(), path, attempt, exc)
                 if attempt <= self.retry.max_retries:
                     time.sleep(self.retry.backoff(attempt))
                     continue
                 raise BighubTimeoutError(f"Request timed out: {method.upper()} {path}") from exc
             except httpx.RequestError as exc:
                 last_exc = exc
+                logger.warning("BIGHUB network error %s %s attempt=%d: %s", method.upper(), path, attempt, exc)
                 if _should_retry(status_code=status_code, exc=exc) and attempt <= self.retry.max_retries:
                     time.sleep(self.retry.backoff(attempt))
                     continue
@@ -231,7 +270,9 @@ class AsyncTransport:
         last_exc: Optional[Exception] = None
         for attempt in range(1, self.retry.max_retries + 2):
             status_code: Optional[int] = None
+            t0 = time.monotonic()
             try:
+                logger.debug("BIGHUB %s %s attempt=%d", method.upper(), path, attempt)
                 response = await self._client.request(
                     method=method.upper(),
                     url=url,
@@ -240,17 +281,23 @@ class AsyncTransport:
                     headers=req_headers,
                 )
                 status_code = response.status_code
+                elapsed = time.monotonic() - t0
+                logger.debug("BIGHUB %s %s → %d (%.3fs)", method.upper(), path, status_code, elapsed)
                 if _should_retry(status_code=status_code, exc=None) and attempt <= self.retry.max_retries:
-                    await asyncio.sleep(self.retry.backoff(attempt))
+                    backoff = self.retry.backoff(attempt)
+                    logger.warning("BIGHUB retry %d/%d %s %s (status=%d) in %.2fs", attempt, self.retry.max_retries, method.upper(), path, status_code, backoff)
+                    await asyncio.sleep(backoff)
                     continue
                 return parse_response_or_raise(response)
             except httpx.TimeoutException as exc:
+                logger.warning("BIGHUB timeout %s %s attempt=%d: %s", method.upper(), path, attempt, exc)
                 if attempt <= self.retry.max_retries:
                     await asyncio.sleep(self.retry.backoff(attempt))
                     continue
                 raise BighubTimeoutError(f"Request timed out: {method.upper()} {path}") from exc
             except httpx.RequestError as exc:
                 last_exc = exc
+                logger.warning("BIGHUB network error %s %s attempt=%d: %s", method.upper(), path, attempt, exc)
                 if _should_retry(status_code=status_code, exc=exc) and attempt <= self.retry.max_retries:
                     await asyncio.sleep(self.retry.backoff(attempt))
                     continue

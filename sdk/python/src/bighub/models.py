@@ -23,7 +23,7 @@ def _clean_none(data: JSONDict) -> JSONDict:
 
 
 @dataclass
-class ActionSubmitV2Model:
+class ActionSubmitPayloadModel:
     action: str
     actor: str = "AI_AGENT"
     value: Optional[float] = None
@@ -89,6 +89,12 @@ class RuleValidateModel:
 
     def to_payload(self) -> JSONDict:
         return _clean_none(asdict(self))
+
+
+# Public surface rename: constraints (backward-compatible aliases to rule models).
+ConstraintCreateModel = RuleCreateModel
+ConstraintUpdateModel = RuleUpdateModel
+ConstraintValidateModel = RuleValidateModel
 
 
 @dataclass

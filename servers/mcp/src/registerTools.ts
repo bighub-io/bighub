@@ -52,9 +52,9 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_actions_submit",
+    "bighub_actions_evaluate",
     {
-      description: "Evaluate an action via /actions/submit.",
+      description: "Evaluate an action via /actions/evaluate — returns decision intelligence (recommendation, risk, trajectory health, alternatives).",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         action: z.string(),
@@ -67,21 +67,24 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
         idempotency_key: z.string().optional(),
       },
     },
-    async ({ action, actor, value, target, domain, context, metadata, idempotency_key }) =>
-      toResult(
+    async ({ action, actor, value, target, domain, context, metadata, idempotency_key }) => {
+      const mergedContext = { ...(metadata || {}), ...(context || {}) };
+      const body = cleanObject({ action, actor, value, target, domain, context: Object.keys(mergedContext).length ? mergedContext : undefined });
+      return toResult(
         await client.request({
           method: "POST",
-          path: "/actions/submit",
-          body: cleanObject({ action, actor, value, target, domain, context: context ?? metadata }),
+          path: "/actions/evaluate",
+          body,
           idempotencyKey: idempotency_key,
         }),
-      ),
+      );
+    },
   );
 
   server.registerTool(
-    "bighub_actions_submit_v2",
+    "bighub_actions_evaluate_payload",
     {
-      description: "Evaluate an action via /actions/submit/v2 (advanced mode).",
+      description: "Evaluate an action with full decision intelligence payload via /actions/evaluate.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         payload: JsonObjectSchema,
@@ -92,7 +95,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       toResult(
         await client.request({
           method: "POST",
-          path: "/actions/submit/v2",
+          path: "/actions/evaluate",
           body: payload,
           idempotencyKey: idempotency_key,
         }),
@@ -102,7 +105,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_actions_dry_run",
     {
-      description: "Dry-run action evaluation (non-persistent) via /actions/submit/dry-run.",
+      description: "Dry-run action evaluation (non-persistent) via /actions/evaluate with dry_run=true.",
       inputSchema: {
         payload: JsonObjectSchema,
         idempotency_key: z.string().optional(),
@@ -112,9 +115,69 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       toResult(
         await client.request({
           method: "POST",
-          path: "/actions/submit/dry-run",
-          body: payload,
+          path: "/actions/evaluate",
+          body: { ...payload, dry_run: true },
           idempotencyKey: idempotency_key,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_actions_live_connect",
+    {
+      description: "Open a concurrent live agent connection slot. Returns connection_id to reuse for heartbeats and submits.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        actor: z.string().default("AI_AGENT"),
+        context: JsonObjectSchema.optional(),
+      },
+    },
+    async ({ actor, context }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/actions/live/connect",
+          body: { actor, context: context || {} },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_actions_live_heartbeat",
+    {
+      description: "Heartbeat an existing live agent connection to keep it alive (recommended every 40s, TTL 120s).",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        connection_id: z.string(),
+        context: JsonObjectSchema.optional(),
+      },
+    },
+    async ({ connection_id, context }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/actions/live/heartbeat",
+          body: { connection_id, context: context || {} },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_actions_live_disconnect",
+    {
+      description: "Disconnect a live agent connection, freeing the slot immediately.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        connection_id: z.string(),
+        context: JsonObjectSchema.optional(),
+      },
+    },
+    async ({ connection_id, context }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/actions/live/disconnect",
+          body: { connection_id, context: context || {} },
         }),
       ),
   );
@@ -271,7 +334,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_create",
+    "bighub_constraints_create",
     {
       description: "Create a boundary rule.",
       outputSchema: AnyOutputSchema,
@@ -292,7 +355,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_list",
+    "bighub_constraints_list",
     {
       description: "List boundary rules.",
       outputSchema: AnyOutputSchema,
@@ -314,7 +377,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_get",
+    "bighub_constraints_get",
     {
       description: "Fetch a single rule by rule_id.",
       outputSchema: AnyOutputSchema,
@@ -324,7 +387,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_update",
+    "bighub_constraints_update",
     {
       description: "Update a rule by rule_id.",
       outputSchema: AnyOutputSchema,
@@ -346,7 +409,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_delete",
+    "bighub_constraints_delete",
     {
       description: "Delete a rule.",
       inputSchema: {
@@ -365,7 +428,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_pause",
+    "bighub_constraints_pause",
     {
       description: "Pause a rule by rule_id.",
       inputSchema: {
@@ -384,7 +447,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_resume",
+    "bighub_constraints_resume",
     {
       description: "Resume a paused rule.",
       inputSchema: {
@@ -403,7 +466,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_dry_run",
+    "bighub_constraints_dry_run",
     {
       description: "Dry run a rule payload without persisting.",
       inputSchema: {
@@ -421,7 +484,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_validate",
+    "bighub_constraints_validate",
     {
       description: "Validate a rule payload.",
       inputSchema: {
@@ -439,7 +502,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_validate_dry_run",
+    "bighub_constraints_validate_dry_run",
     {
       description: "Dry-run validate a rule payload.",
       inputSchema: {
@@ -457,7 +520,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_domains",
+    "bighub_constraints_domains",
     {
       description: "List available rule domains.",
       inputSchema: {},
@@ -466,7 +529,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_versions",
+    "bighub_constraints_versions",
     {
       description: "List historical versions for a rule.",
       outputSchema: AnyOutputSchema,
@@ -486,7 +549,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_purge_idempotency",
+    "bighub_constraints_purge_idempotency",
     {
       description: "Purge rule idempotency records from the backend store.",
       outputSchema: AnyOutputSchema,
@@ -507,7 +570,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   );
 
   server.registerTool(
-    "bighub_rules_apply_patch",
+    "bighub_constraints_apply_patch",
     {
       description: "Apply JSON Patch operations to a rule with preview/optimistic locking support.",
       outputSchema: AnyOutputSchema,
@@ -592,30 +655,36 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_kill_switch_activate",
     {
-      description: "Activate global/domain kill switch.",
+      description: "Activate global/domain kill switch. Requires a reason.",
       inputSchema: {
-        payload: JsonObjectSchema.optional(),
+        reason: z.string().min(1).describe("Why the kill switch is being activated"),
+        scope: z.string().default("global").describe("Scope: global or domain"),
+        domain: z.string().optional().describe("Domain to target (when scope=domain)"),
+        rule_id: z.string().optional().describe("Specific rule to kill"),
       },
     },
-    async ({ payload }) =>
-      toResult(await client.request({ method: "POST", path: "/kill-switch/activate", body: payload || {} })),
+    async ({ reason, scope, domain, rule_id }) =>
+      toResult(await client.request({ method: "POST", path: "/kill-switch/activate", body: cleanObject({ reason, scope, domain, rule_id }) })),
   );
 
   server.registerTool(
     "bighub_kill_switch_deactivate",
     {
-      description: "Deactivate kill switch by switch_id.",
+      description: "Deactivate kill switch by switch_id. Requires a reason.",
       inputSchema: {
         switch_id: z.string(),
-        payload: JsonObjectSchema.optional(),
+        reason: z.string().min(1).describe("Why the kill switch is being deactivated"),
+        scope: z.string().default("global").optional(),
+        domain: z.string().optional(),
+        rule_id: z.string().optional(),
       },
     },
-    async ({ switch_id, payload }) =>
+    async ({ switch_id, reason, scope, domain, rule_id }) =>
       toResult(
         await client.request({
           method: "POST",
           path: `/kill-switch/deactivate/${switch_id}`,
-          body: payload || {},
+          body: cleanObject({ reason, scope, domain, rule_id }),
         }),
       ),
   );
@@ -926,14 +995,14 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_cases_create",
     {
-      description: "Create a decision case.",
+      description: "Create a decision case. Requires action and verdict.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
         domain: z.string(),
-        action: JsonObjectSchema,
+        action: JsonObjectSchema.describe("Action payload: {tool, action, arguments, value, target, domain}"),
+        verdict: JsonObjectSchema.describe("Required verdict: {verdict: ALLOWED|BLOCKED|APPROVAL_REQUIRED|LIMITED|DRY_RUN, mode, reasons, risk_score, confidence}"),
         context: JsonObjectSchema.optional(),
         simulation: JsonObjectSchema.optional(),
-        verdict: JsonObjectSchema.optional(),
         goal_summary: z.string().optional(),
         trigger_source: z.string().optional(),
         actor_type: z.string().default("AI_AGENT"),
@@ -1020,23 +1089,22 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
   server.registerTool(
     "bighub_cases_precedents",
     {
-      description: "Get precedent intelligence for a proposed action.",
+      description: "Get precedent intelligence for a proposed action. action must be a nested ActionInput object.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
-        domain: z.string(),
-        action: z.string(),
-        tool: z.string().optional(),
-        actor_type: z.string().default("AI_AGENT"),
-        risk_score: z.number().optional(),
-        axes: JsonObjectSchema.optional(),
+        domain: z.string().optional().describe("Domain to scope precedent search"),
+        action: JsonObjectSchema.describe("ActionInput: {action, tool, action_type, arguments, value, target}"),
+        context: JsonObjectSchema.optional().describe("ContextInput: {axes, axes_risk_score, intent, irreversibility}"),
+        min_similarity: z.number().min(0).max(1).default(0.5).optional(),
+        limit: z.number().int().min(1).max(100).default(20).optional(),
       },
     },
-    async ({ domain, action, tool, actor_type, risk_score, axes }) =>
+    async ({ domain, action, context, min_similarity, limit }) =>
       toResult(
         await client.request({
           method: "POST",
           path: "/cases/precedents",
-          body: cleanObject({ domain, action, tool, actor_type, risk_score, axes }),
+          body: cleanObject({ domain, action, context, min_similarity, limit }),
         }),
       ),
   );
@@ -1078,19 +1146,25 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
         details: JsonObjectSchema.optional(),
         actual_impact: JsonObjectSchema.optional(),
         correction_needed: z.boolean().default(false),
+        correction_description: z.string().optional(),
+        correction_cost: z.number().optional(),
+        time_to_detect_s: z.number().optional(),
+        time_to_resolve_s: z.number().optional(),
         rollback_performed: z.boolean().default(false),
         revenue_impact: z.number().optional(),
+        customer_impact_count: z.number().int().default(0),
+        support_tickets_created: z.number().int().default(0),
         observed_at: z.string().optional(),
         reported_by: z.string().optional(),
         tags: z.array(z.string()).optional(),
       },
     },
-    async ({ status, request_id, case_id, validation_id, description, details, actual_impact, correction_needed, rollback_performed, revenue_impact, observed_at, reported_by, tags }) =>
+    async ({ status, request_id, case_id, validation_id, description, details, actual_impact, correction_needed, correction_description, correction_cost, time_to_detect_s, time_to_resolve_s, rollback_performed, revenue_impact, customer_impact_count, support_tickets_created, observed_at, reported_by, tags }) =>
       toResult(
         await client.request({
           method: "POST",
           path: "/outcomes/report",
-          body: cleanObject({ status, request_id, case_id, validation_id, description, details, actual_impact, correction_needed, rollback_performed, revenue_impact, observed_at, reported_by, tags }),
+          body: cleanObject({ status, request_id, case_id, validation_id, description, details, actual_impact, correction_needed, correction_description, correction_cost, time_to_detect_s, time_to_resolve_s, rollback_performed, revenue_impact, customer_impact_count, support_tickets_created, observed_at, reported_by, tags }),
         }),
       ),
   );
@@ -1123,6 +1197,28 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     },
     async ({ request_id }) =>
       toResult(await client.request({ method: "GET", path: `/outcomes/${request_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_get_by_validation",
+    {
+      description: "Get outcome by validation_id.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { validation_id: z.string() },
+    },
+    async ({ validation_id }) =>
+      toResult(await client.request({ method: "GET", path: `/outcomes/by-validation/${validation_id}` })),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_get_by_case",
+    {
+      description: "Get outcome by case_id.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { case_id: z.string() },
+    },
+    async ({ case_id }) =>
+      toResult(await client.request({ method: "GET", path: `/outcomes/by-case/${case_id}` })),
   );
 
   server.registerTool(
@@ -1184,6 +1280,32 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       inputSchema: {},
     },
     async () => toResult(await client.request({ method: "GET", path: "/outcomes/taxonomy" })),
+  );
+
+  server.registerTool(
+    "bighub_outcomes_recommendation_quality",
+    {
+      description:
+        "Recommendation quality analytics: follow rate, quadrants (followed+positive, followed+negative, ignored+positive, ignored+negative), breakdowns by domain/actor, and notable examples of BIGHUB helped / missed.",
+      inputSchema: {
+        domain: z.string().optional().describe("Filter by domain"),
+        since: z.string().optional().describe("Start date (ISO 8601)"),
+        until: z.string().optional().describe("End date (ISO 8601)"),
+      },
+    },
+    async ({ domain, since, until }) => {
+      const params = new URLSearchParams();
+      if (domain) params.set("domain", domain);
+      if (since) params.set("since", since);
+      if (until) params.set("until", until);
+      const qs = params.toString() ? `?${params}` : "";
+      return toResult(
+        await client.request({
+          method: "GET",
+          path: `/outcomes/analytics/recommendation-quality${qs}`,
+        }),
+      );
+    },
   );
 
   // ---------------------------------------------------------------------------
@@ -1380,6 +1502,26 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       ),
   );
 
+  server.registerTool(
+    "bighub_calibration_quality_history",
+    {
+      description: "Daily quality score over time — powers the Learning chart. Returns quality_score (1 − Brier), positive_rate per day.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        days: z.number().int().min(1).max(180).default(30).describe("Number of days to include"),
+        domain: z.string().optional(),
+      },
+    },
+    async ({ days, domain }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/calibration/quality-history",
+          query: cleanObject({ days, domain }),
+        }),
+      ),
+  );
+
   // ---------------------------------------------------------------------------
   // Retrieval — Multi-signal decision retrieval engine
   // ---------------------------------------------------------------------------
@@ -1510,6 +1652,33 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     async () => toResult(await client.request({ method: "GET", path: "/retrieval/stats" })),
   );
 
+  server.registerTool(
+    "bighub_retrieval_compare",
+    {
+      description: "Compare two retrieval strategies on the same query. Returns scored results, risk level, confidence, and stability for each strategy.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        domain: z.string().default(""),
+        tool: z.string().default(""),
+        action: z.string().default(""),
+        actor_type: z.string().default(""),
+        axes: JsonObjectSchema.optional().describe("Risk axes as {axis_name: score}"),
+        risk_score: z.number().default(0.0),
+        intent: z.string().default(""),
+        strategy_a: z.string().default("balanced").describe("First strategy to compare"),
+        strategy_b: z.string().default("consequence-focused").describe("Second strategy to compare"),
+      },
+    },
+    async ({ domain, tool, action, actor_type, axes, risk_score, intent, strategy_a, strategy_b }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/retrieval/compare",
+          body: cleanObject({ domain, tool, action, actor_type, axes, risk_score, intent, strategy_a, strategy_b }),
+        }),
+      ),
+  );
+
   // ---------------------------------------------------------------------------
   // Features — Decision feature layer
   // ---------------------------------------------------------------------------
@@ -1634,6 +1803,78 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       inputSchema: {},
     },
     async () => toResult(await client.request({ method: "GET", path: "/features/stats" })),
+  );
+
+  server.registerTool(
+    "bighub_features_compute_batch",
+    {
+      description: "Compute feature vectors for multiple cases in a single request (max 500).",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        cases: z.array(
+          z.object({
+            case_id: z.string(),
+            org_id: z.string().default(""),
+            case_data: JsonObjectSchema.optional(),
+            outcome_data: JsonObjectSchema.optional(),
+            precedent_data: JsonObjectSchema.optional(),
+            calibration_data: JsonObjectSchema.optional(),
+            advisory_data: JsonObjectSchema.optional(),
+            domain_stats: JsonObjectSchema.optional(),
+          }),
+        ).min(1).max(500),
+      },
+    },
+    async ({ cases }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/features/compute/batch",
+          body: { cases },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_features_compare",
+    {
+      description: "Compare two feature snapshots or cached vectors. Returns changed features with diffs.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        snapshot_id_a: z.string().optional(),
+        snapshot_id_b: z.string().optional(),
+        case_id_a: z.string().optional(),
+        case_id_b: z.string().optional(),
+        changed_only: z.boolean().default(true).describe("Only return features that differ"),
+      },
+    },
+    async ({ snapshot_id_a, snapshot_id_b, case_id_a, case_id_b, changed_only }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/features/compare",
+          body: cleanObject({ snapshot_id_a, snapshot_id_b, case_id_a, case_id_b, changed_only }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_features_export_batch",
+    {
+      description: "Export flat feature dicts for multiple cases (max 500).",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        case_ids: z.array(z.string()).min(1).max(500),
+      },
+    },
+    async ({ case_ids }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/features/export/batch",
+          body: { case_ids },
+        }),
+      ),
   );
 
   // ---------------------------------------------------------------------------
@@ -1877,6 +2118,253 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
           method: "POST",
           path: "/ops/learning/backfill",
           body: { domain, action_family, force, limit, async_mode },
+        }),
+      ),
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Batch action evaluation
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  server.registerTool(
+    "bighub_actions_evaluate_batch",
+    {
+      description:
+        "Evaluate multiple actions in a single request via /actions/evaluate/batch. " +
+        "Each element follows the same schema as bighub_actions_evaluate. Max 100 actions. Rate limited: 10/min.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        actions: z.array(
+          z.object({
+            action: z.string(),
+            actor: z.string().default("AI_AGENT"),
+            value: z.number().optional(),
+            target: z.string().optional(),
+            domain: z.string().optional(),
+            context: JsonObjectSchema.optional(),
+            dry_run: z.boolean().default(false),
+            check_contracts: z.boolean().default(false),
+          }),
+        ).max(100),
+        idempotency_key: z.string().optional(),
+      },
+    },
+    async ({ actions, idempotency_key }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/actions/evaluate/batch",
+          body: { actions },
+          idempotencyKey: idempotency_key,
+        }),
+      ),
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Ingest — real-world event lifecycle
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  server.registerTool(
+    "bighub_ingest_event",
+    {
+      description:
+        "Ingest a single real-world event into BIGHUB. Events flow through: " +
+        "normalize → enrich → correlate → sync. BIGHUB links the event to the " +
+        "correct decision lifecycle using any provided correlation key.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        event_type: z.string().default("OUTCOME_OBSERVED").describe(
+          "Event type: ACTION_PROPOSED, ACTION_EXECUTED, ACTION_BLOCKED, " +
+          "HUMAN_OVERRIDE, HUMAN_APPROVAL, HUMAN_REJECTION, " +
+          "OUTCOME_OBSERVED, OUTCOME_UPDATED, ROLLBACK_PERFORMED, " +
+          "CORRECTION_APPLIED, ESCALATION_TRIGGERED, FRAUD_DETECTED, " +
+          "CHURN_SIGNAL, TICKET_REOPENED, REFUND_COMPLETED, PRICING_CORRECTION",
+        ),
+        timestamp: z.string().optional().describe("ISO 8601 timestamp (defaults to now)"),
+        request_id: z.string().default("").describe("Link to BIGHUB decision (from /actions/evaluate response)"),
+        case_id: z.string().default("").describe("Link to DecisionCase"),
+        validation_id: z.string().default("").describe("Link to rule validation"),
+        external_ref: z.string().default("").describe("Your system's reference (e.g. order_id)"),
+        tenant_ref: z.string().default("").describe("Tenant-level reference"),
+        entity_id: z.string().default("").describe("Entity being acted on"),
+        session_id: z.string().default("").describe("Session / conversation ID"),
+        action: JsonObjectSchema.optional().describe("Action payload: {tool, action, arguments, value, target, domain}"),
+        context: JsonObjectSchema.optional().describe("Context: {risk_score, axes, environment, ...}"),
+        execution: JsonObjectSchema.optional().describe("Execution result: {executed, status_code, error, ...}"),
+        outcome: JsonObjectSchema.optional().describe("Outcome: {status, description, revenue_impact, ...}"),
+        human_feedback: JsonObjectSchema.optional().describe("Human: {feedback_type, decision, reason, ...}"),
+        intent: JsonObjectSchema.optional().describe("Intent: {goal_summary, trigger_source, actor_type, ...}"),
+        adapter: z.string().default("generic_webhook"),
+        domain: z.string().default(""),
+        tags: z.array(z.string()).optional(),
+      },
+    },
+    async (args) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/ingest",
+          body: cleanObject(args as Record<string, unknown>),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_batch",
+    {
+      description:
+        "Ingest multiple real-world events in a single request (max 500). " +
+        "Events are processed through the same normalize → enrich → correlate → sync pipeline.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        events: z.array(JsonObjectSchema).max(500).describe("Raw event payloads"),
+        adapter: z.string().default("generic_webhook"),
+        domain: z.string().default(""),
+      },
+    },
+    async ({ events, adapter, domain }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/ingest/batch",
+          body: { events, adapter, domain },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_reconcile",
+    {
+      description:
+        "Reconcile a late-arriving outcome with a previous decision. " +
+        "Use when the outcome arrives after the initial event was already ingested.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        key_name: z.string().describe("Correlation key: request_id, case_id, external_ref, tenant_ref, or entity_id"),
+        key_value: z.string().describe("Value of the correlation key"),
+        outcome: JsonObjectSchema.describe("Outcome event payload to attach"),
+      },
+    },
+    async ({ key_name, key_value, outcome }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/ingest/reconcile",
+          body: { key_name, key_value, outcome },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_lifecycles",
+    {
+      description: "List decision lifecycles with optional status filter.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        status_filter: z.string().optional().describe("Filter by lifecycle status"),
+        limit: z.number().int().default(50),
+      },
+    },
+    async ({ status_filter, limit }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ingest/lifecycles",
+          query: cleanObject({ status_filter, limit }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_lifecycle",
+    {
+      description: "Get a specific decision lifecycle by correlation key.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        request_id: z.string().optional(),
+        case_id: z.string().optional(),
+        external_ref: z.string().optional(),
+        tenant_ref: z.string().optional(),
+        entity_id: z.string().optional(),
+      },
+    },
+    async ({ request_id, case_id, external_ref, tenant_ref, entity_id }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ingest/lifecycle",
+          query: cleanObject({ request_id, case_id, external_ref, tenant_ref, entity_id }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_pending",
+    {
+      description: "List lifecycles awaiting outcome reconciliation.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        limit: z.number().int().default(50),
+      },
+    },
+    async ({ limit }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ingest/pending",
+          query: { limit },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_stale",
+    {
+      description: "List stale lifecycles that have not received an outcome within the expected timeframe.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        stale_after_days: z.number().int().default(7),
+        limit: z.number().int().default(50),
+      },
+    },
+    async ({ stale_after_days, limit }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ingest/stale",
+          query: { stale_after_days, limit },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_stats",
+    {
+      description: "Get organization-wide ingestion statistics (event counts, adapter breakdown, lifecycle status distribution).",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {},
+    },
+    async () =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ingest/stats",
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_ingest_adapters",
+    {
+      description: "List available ingestion adapters and domain normalizers.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {},
+    },
+    async () =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/ingest/adapters",
         }),
       ),
   );

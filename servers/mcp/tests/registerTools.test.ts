@@ -29,7 +29,7 @@ describe("registerBighubTools", () => {
     const fakeClient = { request } as unknown as BighubHttpClient;
 
     registerBighubTools(fakeServer as never, fakeClient);
-    const tool = fakeServer.tools.get("bighub_rules_purge_idempotency");
+    const tool = fakeServer.tools.get("bighub_constraints_purge_idempotency");
 
     expect(tool).toBeDefined();
     expect(tool?.config.outputSchema).toBeDefined();
@@ -59,8 +59,8 @@ describe("registerBighubTools", () => {
     registerBighubTools(fakeServer as never, fakeClient);
 
     for (const toolName of [
-      "bighub_actions_submit",
-      "bighub_rules_create",
+      "bighub_actions_evaluate",
+      "bighub_constraints_create",
       "bighub_approvals_list",
       "bighub_webhooks_list",
       "bighub_auth_login",
@@ -78,7 +78,7 @@ describe("registerBighubTools", () => {
 
     registerBighubTools(fakeServer as never, fakeClient);
 
-    const submitTool = fakeServer.tools.get("bighub_actions_submit");
+    const submitTool = fakeServer.tools.get("bighub_actions_evaluate");
     const retrievalTool = fakeServer.tools.get("bighub_retrieval_query");
 
     await submitTool?.handler({
@@ -95,7 +95,7 @@ describe("registerBighubTools", () => {
     expect(request).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        path: "/actions/submit",
+        path: "/actions/evaluate",
         body: expect.objectContaining({
           context: { order_id: "ord_1" },
         }),

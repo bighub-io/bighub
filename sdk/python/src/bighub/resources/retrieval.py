@@ -109,6 +109,36 @@ class RetrievalAPI:
             method="POST", path="/retrieval/index", json_body=body
         )
 
+    def compare(
+        self,
+        *,
+        domain: str = "",
+        tool: str = "",
+        action: str = "",
+        actor_type: str = "",
+        axes: Optional[JSONDict] = None,
+        risk_score: float = 0.0,
+        intent: str = "",
+        strategy_a: str = "balanced",
+        strategy_b: str = "consequence-focused",
+    ) -> JSONDict:
+        """Compare two retrieval strategies on the same query."""
+        body: Dict[str, Any] = {
+            "domain": domain,
+            "tool": tool,
+            "action": action,
+            "actor_type": actor_type,
+            "risk_score": risk_score,
+            "intent": intent,
+            "strategy_a": strategy_a,
+            "strategy_b": strategy_b,
+        }
+        if axes is not None:
+            body["axes"] = axes
+        return self._transport.request(
+            method="POST", path="/retrieval/compare", json_body=body
+        )
+
     def stats(self) -> JSONDict:
         return self._transport.request(method="GET", path="/retrieval/stats")
 
@@ -214,6 +244,36 @@ class AsyncRetrievalAPI:
             body["axes"] = axes
         return await self._transport.request(
             method="POST", path="/retrieval/index", json_body=body
+        )
+
+    async def compare(
+        self,
+        *,
+        domain: str = "",
+        tool: str = "",
+        action: str = "",
+        actor_type: str = "",
+        axes: Optional[JSONDict] = None,
+        risk_score: float = 0.0,
+        intent: str = "",
+        strategy_a: str = "balanced",
+        strategy_b: str = "consequence-focused",
+    ) -> JSONDict:
+        """Compare two retrieval strategies on the same query."""
+        body: Dict[str, Any] = {
+            "domain": domain,
+            "tool": tool,
+            "action": action,
+            "actor_type": actor_type,
+            "risk_score": risk_score,
+            "intent": intent,
+            "strategy_a": strategy_a,
+            "strategy_b": strategy_b,
+        }
+        if axes is not None:
+            body["axes"] = axes
+        return await self._transport.request(
+            method="POST", path="/retrieval/compare", json_body=body
         )
 
     async def stats(self) -> JSONDict:

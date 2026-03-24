@@ -71,7 +71,7 @@
 ## [0.2.0] - 2026-02-27
 
 ### Added
-- **Responses API v2 support**: Targets `openai>=2.0.0,<3.0.0` and `client.responses.create`.
+- **Responses API support**: Targets `openai>=2.0.0,<3.0.0` and `client.responses.create`.
 - **`store=false` by default**: All provider calls set `store=false` to avoid persisting tool-call data on OpenAI servers. Override via `extra_create_args={"store": True}`.
 - **Expanded stream events**: `run_stream` now emits `llm_text_done`, `output_item_added`, `function_call_args_delta`, `function_call_args_done`, `refusal_delta`, `response_done`, and `response_failed` in addition to existing `llm_delta`, `execution_event`, `final_response`.
 - **Typed retry on transient errors**: Retries only trigger on `APIConnectionError`, `APITimeoutError`, `RateLimitError`. Non-retryable errors (e.g. `BadRequestError`) fail immediately.

@@ -18,7 +18,7 @@ from .resources.learning import LearningAPI
 from .resources.outcomes import OutcomesAPI
 from .resources.precedents import PrecedentsAPI
 from .resources.retrieval import RetrievalAPI
-from .resources.rules import RulesAPI
+from .resources.rules import ConstraintsAPI
 from .resources.simulations import SimulationsAPI
 from .resources.webhooks import WebhooksAPI
 from .transport import RetryConfig, SyncTransport
@@ -66,7 +66,8 @@ class BighubClient:
         self.learning = LearningAPI(self._transport)
 
         # Configuration and controls
-        self.rules = RulesAPI(self._transport)
+        self.constraints = ConstraintsAPI(self._transport)
+        self.rules = self.constraints  # backward-compatible alias
         self.kill_switch = KillSwitchAPI(self._transport)
         self.approvals = ApprovalsAPI(self._transport)
 

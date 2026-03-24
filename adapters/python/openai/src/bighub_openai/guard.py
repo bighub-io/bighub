@@ -59,6 +59,10 @@ class ToolResult:
     decision: Dict[str, Any]
     output: Optional[Any] = None
     error: Optional[str] = None
+    recommendation: Optional[str] = None
+    risk_score: Optional[float] = None
+    enforcement_mode: Optional[str] = None
+    trajectory_health: Optional[str] = None
 
 
 GuardedToolResult = ToolResult
@@ -79,6 +83,10 @@ class ToolExecutionEvent:
     seq: Optional[int] = None
     schema_version: int = 1
     source_version: Optional[str] = None
+    recommendation: Optional[str] = None
+    risk_score: Optional[float] = None
+    enforcement_mode: Optional[str] = None
+    trajectory_health: Optional[str] = None
 
 
 class BighubOpenAI:
@@ -105,6 +113,7 @@ class BighubOpenAI:
         bighub_client: Optional[BighubClient] = None,
         fail_mode: str = "closed",
         max_tool_rounds: int = 8,
+        session_id: Optional[str] = None,
         provider_timeout_seconds: float = 30.0,
         provider_max_retries: int = 2,
         provider_retry_backoff_seconds: float = 0.25,
@@ -112,6 +121,7 @@ class BighubOpenAI:
         provider_retry_jitter_seconds: float = 0.1,
         provider_circuit_breaker_failures: int = 0,
         provider_circuit_breaker_reset_seconds: float = 30.0,
+        evaluate_retries: int = 2,
     ) -> None:
         self._init_shared_config(
             actor=actor,
@@ -125,6 +135,7 @@ class BighubOpenAI:
             outcome_reporting=outcome_reporting,
             fail_mode=fail_mode,
             max_tool_rounds=max_tool_rounds,
+            session_id=session_id,
             provider_timeout_seconds=provider_timeout_seconds,
             provider_max_retries=provider_max_retries,
             provider_retry_backoff_seconds=provider_retry_backoff_seconds,
@@ -132,6 +143,7 @@ class BighubOpenAI:
             provider_retry_jitter_seconds=provider_retry_jitter_seconds,
             provider_circuit_breaker_failures=provider_circuit_breaker_failures,
             provider_circuit_breaker_reset_seconds=provider_circuit_breaker_reset_seconds,
+            evaluate_retries=evaluate_retries,
         )
 
         self._bighub = bighub_client or BighubClient(api_key=bighub_api_key)
@@ -151,6 +163,7 @@ class BighubOpenAI:
         outcome_reporting: bool,
         fail_mode: str,
         max_tool_rounds: int,
+        session_id: Optional[str] = None,
         provider_timeout_seconds: float,
         provider_max_retries: int,
         provider_retry_backoff_seconds: float,
@@ -158,11 +171,12 @@ class BighubOpenAI:
         provider_retry_jitter_seconds: float,
         provider_circuit_breaker_failures: int,
         provider_circuit_breaker_reset_seconds: float,
+        evaluate_retries: int = 2,
     ) -> None:
         if fail_mode not in {"closed", "open"}:
             raise AdapterConfigurationError("fail_mode must be 'closed' or 'open'")
-        if decision_mode not in {"submit", "submit_v2"}:
-            raise AdapterConfigurationError("decision_mode must be 'submit' or 'submit_v2'")
+        if decision_mode not in {"submit", "submit_payload"}:
+            raise AdapterConfigurationError("decision_mode must be 'submit' or 'submit_payload'")
         if max_tool_rounds < 1:
             raise AdapterConfigurationError("max_tool_rounds must be >= 1")
 
@@ -177,6 +191,7 @@ class BighubOpenAI:
         self.outcome_reporting = outcome_reporting
         self.fail_mode = fail_mode
         self.max_tool_rounds = max_tool_rounds
+        self.session_id = session_id or str(uuid4())
         self.provider_timeout_seconds = max(1.0, float(provider_timeout_seconds))
         self.provider_max_retries = max(0, int(provider_max_retries))
         self.provider_retry_backoff_seconds = max(0.0, float(provider_retry_backoff_seconds))
@@ -184,9 +199,11 @@ class BighubOpenAI:
         self.provider_retry_jitter_seconds = max(0.0, float(provider_retry_jitter_seconds))
         self.provider_circuit_breaker_failures = max(0, int(provider_circuit_breaker_failures))
         self.provider_circuit_breaker_reset_seconds = max(1.0, float(provider_circuit_breaker_reset_seconds))
+        self.evaluate_retries = max(0, int(evaluate_retries))
         self._provider_consecutive_failures = 0
         self._provider_circuit_opened_at: Optional[float] = None
         self._tools: Dict[str, _RegisteredTool] = {}
+        self._trajectory_id: Optional[str] = None
 
     @staticmethod
     def _build_openai_client(openai_api_key: Optional[str]) -> Any:
@@ -218,8 +235,8 @@ class BighubOpenAI:
         strict: bool = True,
     ) -> None:
         effective_mode = decision_mode or self.decision_mode
-        if effective_mode not in {"submit", "submit_v2"}:
-            raise AdapterConfigurationError("decision_mode must be 'submit' or 'submit_v2'")
+        if effective_mode not in {"submit", "submit_payload"}:
+            raise AdapterConfigurationError("decision_mode must be 'submit' or 'submit_payload'")
         self._tools[name] = _RegisteredTool(
             name=name,
             fn=fn,
@@ -240,6 +257,21 @@ class BighubOpenAI:
         Alias for register_tool to keep integration terse.
         """
         self.register_tool(name=name, fn=fn, **kwargs)
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """Return the list of registered tools with their OpenAI-compatible schemas."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters_schema,
+                    "strict": t.strict,
+                },
+            }
+            for t in self._tools.values()
+        ]
 
     def close(self) -> None:
         self._bighub.close()
@@ -306,8 +338,8 @@ class BighubOpenAI:
                 if self.on_decision:
                     try:
                         self.on_decision(event.__dict__)
-                    except Exception:
-                        # Hooks must not break execution flow.
+                    except Exception as exc:
+                        logger.debug("BIGHUB on_decision hook error (ignored): %s", exc)
                         pass
 
             continuation: Dict[str, Any] = {
@@ -400,8 +432,8 @@ class BighubOpenAI:
                 if self.on_decision:
                     try:
                         self.on_decision(event.__dict__)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("BIGHUB on_decision hook error (ignored): %s", exc)
 
             create_args = {
                 "model": model,
@@ -524,11 +556,16 @@ class BighubOpenAI:
     def check_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
         Evaluate action decision without executing the tool.
+
+        Returns the full BIGHUB evaluation including structured recommendation,
+        risk_score, enforcement_mode, and decision_intelligence when available.
         """
         if tool_name not in self._tools:
             raise AdapterConfigurationError(f"Tool '{tool_name}' is not registered")
         tool = self._tools[tool_name]
-        return self._evaluate_action(tool, arguments)
+        decision = self._evaluate_action(tool, arguments)
+        decision["_resolved_action"] = self._resolve_decision(decision)
+        return decision
 
     def _persist_decisions(
         self,
@@ -572,9 +609,10 @@ class BighubOpenAI:
                 )
                 future.result(timeout=self.memory_ingest_timeout_ms / 1000.0)
         except FutureTimeoutError:
+            logger.debug("BIGHUB memory ingest timed out (best-effort)")
             return
-        except Exception:
-            # Memory ingest is best-effort; evaluation path must never fail because of telemetry.
+        except Exception as exc:
+            logger.debug("BIGHUB memory ingest failed (best-effort): %s", exc)
             return
 
     def _openai_tools(self) -> List[Dict[str, Any]]:
@@ -657,6 +695,72 @@ class BighubOpenAI:
                 )
         return calls
 
+    @staticmethod
+    def _resolve_decision(decision: Dict[str, Any]) -> str:
+        """Map a BIGHUB evaluation response to an adapter action.
+
+        Returns one of: ``"execute"``, ``"blocked"``, ``"approval_required"``.
+
+        Strategy:
+        1. **Enforced mode** -- the backend dictates via ``enforced_verdict``.
+           Unknown or missing verdict defaults to **blocked** (fail-safe).
+        2. **Review mode** -- recommendation drives the decision but
+           ``review_recommended`` always triggers approval.
+        3. **Advisory** -- ``recommendation`` is a signal; the agent decides.
+        4. **Legacy fallback** -- uses ``allowed`` / ``result`` for backends
+           that haven't adopted the structured response shape yet.
+        """
+        enforcement = decision.get("enforcement_mode", "advisory")
+
+        if enforcement == "enforced":
+            verdict = decision.get("enforced_verdict")
+            if verdict == "allowed" or verdict == "proceed":
+                return "execute"
+            if verdict == "requires_approval":
+                return "approval_required"
+            return "blocked"
+
+        if enforcement == "review":
+            recommendation = decision.get("recommendation")
+            if recommendation == "do_not_proceed":
+                return "blocked"
+            if recommendation in ("review_recommended", "proceed_with_caution"):
+                return "approval_required"
+            if recommendation == "proceed":
+                return "execute"
+            return "approval_required"
+
+        recommendation = decision.get("recommendation")
+        if recommendation:
+            if recommendation == "do_not_proceed":
+                return "blocked"
+            if recommendation == "review_recommended":
+                if decision.get("requires_approval") or decision.get("human_review"):
+                    return "approval_required"
+                return "execute"
+            return "execute"
+
+        if decision.get("allowed"):
+            return "execute"
+        if decision.get("result") == "requires_approval":
+            return "approval_required"
+        return "blocked"
+
+    @staticmethod
+    def _enrich_result(result: ToolResult, decision: Dict[str, Any]) -> ToolResult:
+        """Populate structured recommendation fields on a ToolResult."""
+        result.recommendation = decision.get("recommendation")
+        risk = decision.get("risk_score")
+        try:
+            result.risk_score = float(risk) if risk is not None else None
+        except (TypeError, ValueError):
+            result.risk_score = None
+        result.enforcement_mode = decision.get("enforcement_mode")
+        advisory = decision.get("decision_intelligence") or {}
+        fallback = decision.get("intelligence") or {}
+        result.trajectory_health = advisory.get("trajectory_health") or fallback.get("trajectory_health")
+        return result
+
     def _handle_function_call(self, call: Dict[str, Any]) -> tuple[Dict[str, Any], ToolExecutionEvent]:
         name = call["name"]
         if name not in self._tools:
@@ -680,42 +784,49 @@ class BighubOpenAI:
             )
 
         tool = self._tools[name]
-        args = self._parse_arguments(call["arguments"])
-        decision = self._evaluate_action(tool, args)
+        try:
+            args = self._parse_arguments(call["arguments"])
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("BIGHUB failed to parse arguments for %s: %s", name, exc)
+            event = ToolExecutionEvent(
+                tool=name, call_id=call["call_id"], status="tool_error",
+                decision={}, arguments={}, error=f"Invalid arguments JSON: {exc}",
+            )
+            return (
+                self._function_output(call_id=call["call_id"], output={"status": "tool_error", "error": str(exc)}),
+                event,
+            )
 
-        if decision.get("allowed"):
+        decision = self._evaluate_action(tool, args)
+        action = self._resolve_decision(decision)
+
+        if action == "execute":
             try:
                 output = tool.fn(**args)
-                result = ToolResult(
-                    status="executed",
-                    decision=decision,
-                    output=output,
-                )
+                result = ToolResult(status="executed", decision=decision, output=output)
+                self._enrich_result(result, decision)
                 self._report_outcome(
                     decision=decision, tool_name=name, status="SUCCESS",
                     description=f"Tool {name} executed successfully",
+                    output=output,
                 )
             except Exception as exc:
-                result = ToolResult(
-                    status="tool_error",
-                    decision=decision,
-                    error=str(exc),
-                )
-                # Backend outcome taxonomy does not define TOOL_ERROR.
-                # Map execution failures to FAILURE for /outcomes/report compatibility.
+                result = ToolResult(status="tool_error", decision=decision, error=str(exc))
+                self._enrich_result(result, decision)
                 self._report_outcome(
                     decision=decision, tool_name=name, status="FAILURE",
                     description=f"Tool {name} raised: {exc}",
+                    error=str(exc),
                 )
-        elif decision.get("result") == "requires_approval":
-            result = ToolResult(
-                status="approval_required",
-                decision=decision,
-            )
+        elif action == "approval_required":
+            result = ToolResult(status="approval_required", decision=decision)
+            self._enrich_result(result, decision)
         else:
-            result = ToolResult(
-                status="blocked",
-                decision=decision,
+            result = ToolResult(status="blocked", decision=decision)
+            self._enrich_result(result, decision)
+            self._report_outcome(
+                decision=decision, tool_name=name, status="BLOCKED",
+                description=f"Tool {name} blocked: {decision.get('recommendation', decision.get('result', 'denied'))}",
             )
 
         event = ToolExecutionEvent(
@@ -726,6 +837,10 @@ class BighubOpenAI:
             arguments=args,
             output=result.output,
             error=result.error,
+            recommendation=result.recommendation,
+            risk_score=result.risk_score,
+            enforcement_mode=result.enforcement_mode,
+            trajectory_health=result.trajectory_health,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
@@ -738,44 +853,73 @@ class BighubOpenAI:
         target = tool.target_from_args(args) if tool.target_from_args else str(args.get("target", ""))
         decision_mode = tool.decision_mode or self.decision_mode
 
-        try:
-            value = (
-                float(tool.value_from_args(args))
-                if tool.value_from_args
-                else self._infer_value(args)
-            )
-            metadata = tool.metadata_from_args(args) if tool.metadata_from_args else None
-            if decision_mode == "submit_v2":
-                payload: Dict[str, Any] = {
-                    "action": action,
-                    "value": value,
-                    "target": target,
-                    "domain": domain,
-                    "actor": actor,
-                }
-                if metadata:
-                    payload["context"] = metadata
-                return self._bighub.actions.submit_v2(payload=payload)
-            return self._bighub.actions.submit(
-                action=action,
-                value=value,
-                target=target,
-                domain=domain,
-                actor=actor,
-                context=metadata,
-            )
-        except Exception as exc:
-            if self.fail_mode == "open":
-                return {
-                    "allowed": True,
-                    "result": "allowed",
-                    "reason": f"Evaluation bypassed (fail_open): {exc}",
-                }
+        max_retries = getattr(self, "evaluate_retries", 2)
+        last_exc: Optional[Exception] = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                value = (
+                    float(tool.value_from_args(args))
+                    if tool.value_from_args
+                    else self._infer_value(args)
+                )
+                metadata = tool.metadata_from_args(args) if tool.metadata_from_args else None
+                context = dict(metadata) if metadata else {}
+                if self.session_id:
+                    context["session_id"] = self.session_id
+                if self._trajectory_id:
+                    context["trajectory_id"] = self._trajectory_id
+
+                if decision_mode == "submit_payload":
+                    payload: Dict[str, Any] = {
+                        "action": action,
+                        "value": value,
+                        "target": target,
+                        "domain": domain,
+                        "actor": actor,
+                    }
+                    if context:
+                        payload["context"] = context
+                    result = self._bighub.actions.submit_payload(payload=payload)
+                else:
+                    result = self._bighub.actions.submit(
+                        action=action,
+                        value=value,
+                        target=target,
+                        domain=domain,
+                        actor=actor,
+                        context=context or None,
+                    )
+
+                tid = (result.get("intelligence") or {}).get("trajectory_id") or result.get("trajectory_id")
+                if tid:
+                    self._trajectory_id = tid
+
+                return result
+            except Exception as exc:
+                last_exc = exc
+                if attempt < max_retries:
+                    backoff = min(0.5 * (2 ** attempt) + random.uniform(0, 0.1), 5.0)
+                    logger.warning("BIGHUB evaluate retry %d/%d after %.1fs: %s", attempt + 1, max_retries, backoff, exc)
+                    time.sleep(backoff)
+                    continue
+
+        exc = last_exc
+        if self.fail_mode == "open":
             return {
-                "allowed": False,
-                "result": "blocked",
-                "reason": f"Evaluation failed (fail_closed): {exc}",
+                "allowed": True,
+                "result": "allowed",
+                "recommendation": "proceed",
+                "enforcement_mode": "advisory",
+                "reason": f"Evaluation bypassed (fail_open): {exc}",
             }
+        return {
+            "allowed": False,
+            "result": "blocked",
+            "recommendation": "do_not_proceed",
+            "enforcement_mode": "advisory",
+            "reason": f"Evaluation failed (fail_closed): {exc}",
+        }
 
     def _validate_with_bighub(
         self, tool: _RegisteredTool, args: Dict[str, Any]
@@ -789,6 +933,8 @@ class BighubOpenAI:
         tool_name: str,
         status: str,
         description: str,
+        output: Optional[Any] = None,
+        error: Optional[str] = None,
     ) -> None:
         if not self.outcome_reporting:
             return
@@ -796,16 +942,29 @@ class BighubOpenAI:
         if not request_id:
             return
         try:
+            kwargs: Dict[str, Any] = {
+                "request_id": request_id,
+                "status": status,
+                "description": description,
+            }
+            details: Dict[str, Any] = {"tool": tool_name}
+            if decision.get("recommendation"):
+                details["recommendation"] = decision["recommendation"]
+            if decision.get("risk_score") is not None:
+                details["risk_score_was"] = decision["risk_score"]
+            if error:
+                details["error"] = error
+                kwargs["correction_needed"] = True
+            if details:
+                kwargs["details"] = details
             with ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(
                     self._bighub.outcomes.report,
-                    request_id=request_id,
-                    status=status,
-                    description=description,
+                    **kwargs,
                 )
                 future.result(timeout=self.memory_ingest_timeout_ms / 1000.0)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("BIGHUB outcome report failed (best-effort): %s", exc)
 
     @staticmethod
     def _infer_value(args: Dict[str, Any]) -> float:
@@ -1039,6 +1198,7 @@ class AsyncBighubOpenAI(BighubOpenAI):
         bighub_client: Optional[AsyncBighubClient] = None,
         fail_mode: str = "closed",
         max_tool_rounds: int = 8,
+        session_id: Optional[str] = None,
         provider_timeout_seconds: float = 30.0,
         provider_max_retries: int = 2,
         provider_retry_backoff_seconds: float = 0.25,
@@ -1046,6 +1206,7 @@ class AsyncBighubOpenAI(BighubOpenAI):
         provider_retry_jitter_seconds: float = 0.1,
         provider_circuit_breaker_failures: int = 0,
         provider_circuit_breaker_reset_seconds: float = 30.0,
+        evaluate_retries: int = 2,
     ) -> None:
         self._init_shared_config(
             actor=actor,
@@ -1059,6 +1220,7 @@ class AsyncBighubOpenAI(BighubOpenAI):
             outcome_reporting=outcome_reporting,
             fail_mode=fail_mode,
             max_tool_rounds=max_tool_rounds,
+            session_id=session_id,
             provider_timeout_seconds=provider_timeout_seconds,
             provider_max_retries=provider_max_retries,
             provider_retry_backoff_seconds=provider_retry_backoff_seconds,
@@ -1066,6 +1228,7 @@ class AsyncBighubOpenAI(BighubOpenAI):
             provider_retry_jitter_seconds=provider_retry_jitter_seconds,
             provider_circuit_breaker_failures=provider_circuit_breaker_failures,
             provider_circuit_breaker_reset_seconds=provider_circuit_breaker_reset_seconds,
+            evaluate_retries=evaluate_retries,
         )
 
         self._bighub = bighub_client or AsyncBighubClient(api_key=bighub_api_key)
@@ -1152,9 +1315,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
                         maybe_awaitable = self.on_decision(event.__dict__)
                         if inspect.isawaitable(maybe_awaitable):
                             await maybe_awaitable
-                    except Exception:
-                        # Hooks must not break execution flow.
-                        pass
+                    except Exception as exc:
+                        logger.debug("BIGHUB on_decision hook error (ignored): %s", exc)
 
             continuation: Dict[str, Any] = {
                 "model": model,
@@ -1249,8 +1411,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
                         maybe_awaitable = self.on_decision(event.__dict__)
                         if inspect.isawaitable(maybe_awaitable):
                             await maybe_awaitable
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("BIGHUB on_decision hook error (ignored): %s", exc)
 
             create_args = {
                 "model": model,
@@ -1415,11 +1577,16 @@ class AsyncBighubOpenAI(BighubOpenAI):
     async def check_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
         Evaluate action decision without executing the tool.
+
+        Returns the full BIGHUB evaluation including structured recommendation,
+        risk_score, enforcement_mode, and decision_intelligence when available.
         """
         if tool_name not in self._tools:
             raise AdapterConfigurationError(f"Tool '{tool_name}' is not registered")
         tool = self._tools[tool_name]
-        return await self._evaluate_action(tool, arguments)
+        decision = await self._evaluate_action(tool, arguments)
+        decision["_resolved_action"] = self._resolve_decision(decision)
+        return decision
 
     async def _persist_decisions(
         self,
@@ -1462,8 +1629,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
                 ),
                 timeout=self.memory_ingest_timeout_ms / 1000.0,
             )
-        except Exception:
-            # Memory ingest is best-effort; evaluation path must never fail because of telemetry.
+        except Exception as exc:
+            logger.debug("BIGHUB async memory ingest failed (best-effort): %s", exc)
             return
 
     async def _handle_function_call(self, call: Dict[str, Any]) -> tuple[Dict[str, Any], ToolExecutionEvent]:
@@ -1489,43 +1656,50 @@ class AsyncBighubOpenAI(BighubOpenAI):
             )
 
         tool = self._tools[name]
-        args = self._parse_arguments(call["arguments"])
-        decision = await self._evaluate_action(tool, args)
+        try:
+            args = self._parse_arguments(call["arguments"])
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("BIGHUB failed to parse arguments for %s: %s", name, exc)
+            event = ToolExecutionEvent(
+                tool=name, call_id=call["call_id"], status="tool_error",
+                decision={}, arguments={}, error=f"Invalid arguments JSON: {exc}",
+            )
+            return (
+                self._function_output(call_id=call["call_id"], output={"status": "tool_error", "error": str(exc)}),
+                event,
+            )
 
-        if decision.get("allowed"):
+        decision = await self._evaluate_action(tool, args)
+        action = self._resolve_decision(decision)
+
+        if action == "execute":
             try:
                 maybe_result = tool.fn(**args)
                 output = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
-                result = ToolResult(
-                    status="executed",
-                    decision=decision,
-                    output=output,
-                )
+                result = ToolResult(status="executed", decision=decision, output=output)
+                self._enrich_result(result, decision)
                 await self._report_outcome(
                     decision=decision, tool_name=name, status="SUCCESS",
                     description=f"Tool {name} executed successfully",
+                    output=output,
                 )
             except Exception as exc:
-                result = ToolResult(
-                    status="tool_error",
-                    decision=decision,
-                    error=str(exc),
-                )
-                # Backend outcome taxonomy does not define TOOL_ERROR.
-                # Map execution failures to FAILURE for /outcomes/report compatibility.
+                result = ToolResult(status="tool_error", decision=decision, error=str(exc))
+                self._enrich_result(result, decision)
                 await self._report_outcome(
                     decision=decision, tool_name=name, status="FAILURE",
                     description=f"Tool {name} raised: {exc}",
+                    error=str(exc),
                 )
-        elif decision.get("result") == "requires_approval":
-            result = ToolResult(
-                status="approval_required",
-                decision=decision,
-            )
+        elif action == "approval_required":
+            result = ToolResult(status="approval_required", decision=decision)
+            self._enrich_result(result, decision)
         else:
-            result = ToolResult(
-                status="blocked",
-                decision=decision,
+            result = ToolResult(status="blocked", decision=decision)
+            self._enrich_result(result, decision)
+            await self._report_outcome(
+                decision=decision, tool_name=name, status="BLOCKED",
+                description=f"Tool {name} blocked: {decision.get('recommendation', decision.get('result', 'denied'))}",
             )
 
         event = ToolExecutionEvent(
@@ -1536,6 +1710,10 @@ class AsyncBighubOpenAI(BighubOpenAI):
             arguments=args,
             output=result.output,
             error=result.error,
+            recommendation=result.recommendation,
+            risk_score=result.risk_score,
+            enforcement_mode=result.enforcement_mode,
+            trajectory_health=result.trajectory_health,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
@@ -1548,44 +1726,73 @@ class AsyncBighubOpenAI(BighubOpenAI):
         target = tool.target_from_args(args) if tool.target_from_args else str(args.get("target", ""))
         decision_mode = tool.decision_mode or self.decision_mode
 
-        try:
-            value = (
-                float(tool.value_from_args(args))
-                if tool.value_from_args
-                else self._infer_value(args)
-            )
-            metadata = tool.metadata_from_args(args) if tool.metadata_from_args else None
-            if decision_mode == "submit_v2":
-                payload: Dict[str, Any] = {
-                    "action": action,
-                    "value": value,
-                    "target": target,
-                    "domain": domain,
-                    "actor": actor,
-                }
-                if metadata:
-                    payload["context"] = metadata
-                return await self._bighub.actions.submit_v2(payload=payload)
-            return await self._bighub.actions.submit(
-                action=action,
-                value=value,
-                target=target,
-                domain=domain,
-                actor=actor,
-                context=metadata,
-            )
-        except Exception as exc:
-            if self.fail_mode == "open":
-                return {
-                    "allowed": True,
-                    "result": "allowed",
-                    "reason": f"Evaluation bypassed (fail_open): {exc}",
-                }
+        max_retries = getattr(self, "evaluate_retries", 2)
+        last_exc: Optional[Exception] = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                value = (
+                    float(tool.value_from_args(args))
+                    if tool.value_from_args
+                    else self._infer_value(args)
+                )
+                metadata = tool.metadata_from_args(args) if tool.metadata_from_args else None
+                context = dict(metadata) if metadata else {}
+                if self.session_id:
+                    context["session_id"] = self.session_id
+                if self._trajectory_id:
+                    context["trajectory_id"] = self._trajectory_id
+
+                if decision_mode == "submit_payload":
+                    payload: Dict[str, Any] = {
+                        "action": action,
+                        "value": value,
+                        "target": target,
+                        "domain": domain,
+                        "actor": actor,
+                    }
+                    if context:
+                        payload["context"] = context
+                    result = await self._bighub.actions.submit_payload(payload=payload)
+                else:
+                    result = await self._bighub.actions.submit(
+                        action=action,
+                        value=value,
+                        target=target,
+                        domain=domain,
+                        actor=actor,
+                        context=context or None,
+                    )
+
+                tid = (result.get("intelligence") or {}).get("trajectory_id") or result.get("trajectory_id")
+                if tid:
+                    self._trajectory_id = tid
+
+                return result
+            except Exception as exc:
+                last_exc = exc
+                if attempt < max_retries:
+                    backoff = min(0.5 * (2 ** attempt) + random.uniform(0, 0.1), 5.0)
+                    logger.warning("BIGHUB evaluate retry %d/%d after %.1fs: %s", attempt + 1, max_retries, backoff, exc)
+                    await asyncio.sleep(backoff)
+                    continue
+
+        exc = last_exc
+        if self.fail_mode == "open":
             return {
-                "allowed": False,
-                "result": "blocked",
-                "reason": f"Evaluation failed (fail_closed): {exc}",
+                "allowed": True,
+                "result": "allowed",
+                "recommendation": "proceed",
+                "enforcement_mode": "advisory",
+                "reason": f"Evaluation bypassed (fail_open): {exc}",
             }
+        return {
+            "allowed": False,
+            "result": "blocked",
+            "recommendation": "do_not_proceed",
+            "enforcement_mode": "advisory",
+            "reason": f"Evaluation failed (fail_closed): {exc}",
+        }
 
     async def _validate_with_bighub(
         self, tool: _RegisteredTool, args: Dict[str, Any]
@@ -1599,6 +1806,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
         tool_name: str,
         status: str,
         description: str,
+        output: Optional[Any] = None,
+        error: Optional[str] = None,
     ) -> None:
         if not self.outcome_reporting:
             return
@@ -1606,16 +1815,27 @@ class AsyncBighubOpenAI(BighubOpenAI):
         if not request_id:
             return
         try:
+            kwargs: Dict[str, Any] = {
+                "request_id": request_id,
+                "status": status,
+                "description": description,
+            }
+            details: Dict[str, Any] = {"tool": tool_name}
+            if decision.get("recommendation"):
+                details["recommendation"] = decision["recommendation"]
+            if decision.get("risk_score") is not None:
+                details["risk_score_was"] = decision["risk_score"]
+            if error:
+                details["error"] = error
+                kwargs["correction_needed"] = True
+            if details:
+                kwargs["details"] = details
             await asyncio.wait_for(
-                self._bighub.outcomes.report(
-                    request_id=request_id,
-                    status=status,
-                    description=description,
-                ),
+                self._bighub.outcomes.report(**kwargs),
                 timeout=self.memory_ingest_timeout_ms / 1000.0,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("BIGHUB async outcome report failed (best-effort): %s", exc)
 
 
 # ---------------------------------------------------------------------------

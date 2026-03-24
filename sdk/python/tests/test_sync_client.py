@@ -37,7 +37,7 @@ def test_sync_client_retries_transient_500() -> None:
     client.close()
 
 
-def test_sync_rules_validate_and_domains() -> None:
+def test_sync_constraints_validate_and_domains() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/rules/validate":
             return httpx.Response(200, json={"allowed": True, "result": "allowed"})
@@ -70,9 +70,9 @@ def test_sync_rules_validate_and_domains() -> None:
     client = BighubClient(api_key="bhk_test")
     client._transport._client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
 
-    validate_result = client.rules.validate({"action": "update_price", "actor": "AI_AGENT"})
-    domains_result = client.rules.domains()
-    patch_preview = client.rules.apply_patch(
+    validate_result = client.constraints.validate({"action": "update_price", "actor": "AI_AGENT"})
+    domains_result = client.constraints.domains()
+    patch_preview = client.constraints.apply_patch(
         "rule_1",
         patch={"format": "json_patch", "ops": [{"op": "replace", "path": "/max_value", "value": 850.0}]},
         preview=True,
@@ -345,7 +345,7 @@ def test_sync_auth_events_approvals_paths() -> None:
 
 def test_sync_contract_aliases_for_actions_retrieval_and_ingest_reconcile() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/actions/submit" and request.method == "POST":
+        if request.url.path == "/actions/evaluate" and request.method == "POST":
             payload = json.loads(request.content.decode("utf-8"))
             assert payload["context"] == {"order_id": "ord_1"}
             assert "metadata" not in payload

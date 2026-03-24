@@ -18,7 +18,7 @@ from .resources.learning import AsyncLearningAPI
 from .resources.outcomes import AsyncOutcomesAPI
 from .resources.precedents import AsyncPrecedentsAPI
 from .resources.retrieval import AsyncRetrievalAPI
-from .resources.rules import AsyncRulesAPI
+from .resources.rules import AsyncConstraintsAPI
 from .resources.simulations import AsyncSimulationsAPI
 from .resources.webhooks import AsyncWebhooksAPI
 from .transport import AsyncTransport, RetryConfig
@@ -66,7 +66,8 @@ class AsyncBighubClient:
         self.learning = AsyncLearningAPI(self._transport)
 
         # Configuration and controls
-        self.rules = AsyncRulesAPI(self._transport)
+        self.constraints = AsyncConstraintsAPI(self._transport)
+        self.rules = self.constraints  # backward-compatible alias
         self.kill_switch = AsyncKillSwitchAPI(self._transport)
         self.approvals = AsyncApprovalsAPI(self._transport)
 

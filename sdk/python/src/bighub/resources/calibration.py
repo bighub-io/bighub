@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..types import JSONDict
 
@@ -84,6 +84,9 @@ class CalibrationAPI:
         action: Optional[str] = None,
         actor_type: Optional[str] = None,
         verdict: Optional[str] = None,
+        simulation_failure_rate: Optional[float] = None,
+        simulation_fragility: Optional[float] = None,
+        simulation_confidence: Optional[float] = None,
     ) -> JSONDict:
         body: Dict[str, Any] = {
             "case_id": case_id,
@@ -100,8 +103,28 @@ class CalibrationAPI:
             body["actor_type"] = actor_type
         if verdict is not None:
             body["verdict"] = verdict
+        if simulation_failure_rate is not None:
+            body["simulation_failure_rate"] = simulation_failure_rate
+        if simulation_fragility is not None:
+            body["simulation_fragility"] = simulation_fragility
+        if simulation_confidence is not None:
+            body["simulation_confidence"] = simulation_confidence
         return self._transport.request(
             method="POST", path="/calibration/observe", json_body=body
+        )
+
+    def quality_history(
+        self,
+        *,
+        days: int = 30,
+        domain: Optional[str] = None,
+    ) -> List[JSONDict]:
+        """Daily quality score over time (quality_score, positive_rate per day)."""
+        params: Dict[str, Any] = {"days": days}
+        if domain is not None:
+            params["domain"] = domain
+        return self._transport.request(
+            method="GET", path="/calibration/quality-history", params=params
         )
 
 
@@ -181,6 +204,9 @@ class AsyncCalibrationAPI:
         action: Optional[str] = None,
         actor_type: Optional[str] = None,
         verdict: Optional[str] = None,
+        simulation_failure_rate: Optional[float] = None,
+        simulation_fragility: Optional[float] = None,
+        simulation_confidence: Optional[float] = None,
     ) -> JSONDict:
         body: Dict[str, Any] = {
             "case_id": case_id,
@@ -197,6 +223,26 @@ class AsyncCalibrationAPI:
             body["actor_type"] = actor_type
         if verdict is not None:
             body["verdict"] = verdict
+        if simulation_failure_rate is not None:
+            body["simulation_failure_rate"] = simulation_failure_rate
+        if simulation_fragility is not None:
+            body["simulation_fragility"] = simulation_fragility
+        if simulation_confidence is not None:
+            body["simulation_confidence"] = simulation_confidence
         return await self._transport.request(
             method="POST", path="/calibration/observe", json_body=body
+        )
+
+    async def quality_history(
+        self,
+        *,
+        days: int = 30,
+        domain: Optional[str] = None,
+    ) -> List[JSONDict]:
+        """Daily quality score over time (quality_score, positive_rate per day)."""
+        params: Dict[str, Any] = {"days": days}
+        if domain is not None:
+            params["domain"] = domain
+        return await self._transport.request(
+            method="GET", path="/calibration/quality-history", params=params
         )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, overload
+from typing import Any, Dict, List, Optional, overload
 
 from ..models import RuleCreateModel, RuleUpdateModel, RuleValidateModel, to_payload
 from ..protocols import AsyncTransportProtocol, SyncTransportProtocol
@@ -14,8 +14,8 @@ from ..types import (
 )
 
 
-class RulesAPI:
-    """Sync API for rule lifecycle endpoints."""
+class ConstraintsAPI:
+    """Sync API for decision-constraint lifecycle endpoints."""
 
     def __init__(self, transport: SyncTransportProtocol) -> None:
         self._transport = transport
@@ -229,8 +229,8 @@ class RulesAPI:
         )
 
 
-class AsyncRulesAPI:
-    """Async API for rule lifecycle endpoints."""
+class AsyncConstraintsAPI:
+    """Async API for decision-constraint lifecycle endpoints."""
 
     def __init__(self, transport: AsyncTransportProtocol) -> None:
         self._transport = transport
@@ -442,3 +442,8 @@ class AsyncRulesAPI:
             idempotency_key=idempotency_key,
             headers=headers or None,
         )
+
+
+# Backward-compatible aliases (deprecated surface).
+RulesAPI = ConstraintsAPI
+AsyncRulesAPI = AsyncConstraintsAPI

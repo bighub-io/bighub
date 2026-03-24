@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..types import JSONDict
 
@@ -90,6 +90,49 @@ class FeaturesAPI:
     def schema(self) -> JSONDict:
         return self._transport.request(method="GET", path="/features/schema")
 
+    def compute_batch(
+        self,
+        *,
+        cases: List[JSONDict],
+    ) -> JSONDict:
+        """Compute feature vectors for multiple cases (max 500)."""
+        return self._transport.request(
+            method="POST", path="/features/compute/batch", json_body={"cases": cases}
+        )
+
+    def compare(
+        self,
+        *,
+        snapshot_id_a: Optional[str] = None,
+        snapshot_id_b: Optional[str] = None,
+        case_id_a: Optional[str] = None,
+        case_id_b: Optional[str] = None,
+        changed_only: bool = True,
+    ) -> JSONDict:
+        """Compare two feature snapshots or cached vectors. Returns changed features."""
+        body: Dict[str, Any] = {"changed_only": changed_only}
+        if snapshot_id_a is not None:
+            body["snapshot_id_a"] = snapshot_id_a
+        if snapshot_id_b is not None:
+            body["snapshot_id_b"] = snapshot_id_b
+        if case_id_a is not None:
+            body["case_id_a"] = case_id_a
+        if case_id_b is not None:
+            body["case_id_b"] = case_id_b
+        return self._transport.request(
+            method="POST", path="/features/compare", json_body=body
+        )
+
+    def export_batch(
+        self,
+        *,
+        case_ids: List[str],
+    ) -> JSONDict:
+        """Export flat feature dicts for multiple cases (max 500)."""
+        return self._transport.request(
+            method="POST", path="/features/export/batch", json_body={"case_ids": case_ids}
+        )
+
     def stats(self) -> JSONDict:
         return self._transport.request(method="GET", path="/features/stats")
 
@@ -176,6 +219,49 @@ class AsyncFeaturesAPI:
     async def schema(self) -> JSONDict:
         return await self._transport.request(
             method="GET", path="/features/schema"
+        )
+
+    async def compute_batch(
+        self,
+        *,
+        cases: List[JSONDict],
+    ) -> JSONDict:
+        """Compute feature vectors for multiple cases (max 500)."""
+        return await self._transport.request(
+            method="POST", path="/features/compute/batch", json_body={"cases": cases}
+        )
+
+    async def compare(
+        self,
+        *,
+        snapshot_id_a: Optional[str] = None,
+        snapshot_id_b: Optional[str] = None,
+        case_id_a: Optional[str] = None,
+        case_id_b: Optional[str] = None,
+        changed_only: bool = True,
+    ) -> JSONDict:
+        """Compare two feature snapshots or cached vectors. Returns changed features."""
+        body: Dict[str, Any] = {"changed_only": changed_only}
+        if snapshot_id_a is not None:
+            body["snapshot_id_a"] = snapshot_id_a
+        if snapshot_id_b is not None:
+            body["snapshot_id_b"] = snapshot_id_b
+        if case_id_a is not None:
+            body["case_id_a"] = case_id_a
+        if case_id_b is not None:
+            body["case_id_b"] = case_id_b
+        return await self._transport.request(
+            method="POST", path="/features/compare", json_body=body
+        )
+
+    async def export_batch(
+        self,
+        *,
+        case_ids: List[str],
+    ) -> JSONDict:
+        """Export flat feature dicts for multiple cases (max 500)."""
+        return await self._transport.request(
+            method="POST", path="/features/export/batch", json_body={"case_ids": case_ids}
         )
 
     async def stats(self) -> JSONDict:

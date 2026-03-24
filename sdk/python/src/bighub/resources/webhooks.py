@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, overload
+from typing import Any, Dict, Optional, overload
 
 from ..models import WebhookCreateModel, WebhookUpdateModel, to_payload
 from ..protocols import AsyncTransportProtocol, SyncTransportProtocol

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 
@@ -37,4 +37,30 @@ class BighubAPIError(BighubError):
             base = f"{base} (code={self.code})"
         if self.request_id:
             base = f"{base} [request_id={self.request_id}]"
+        return base
+
+
+@dataclass
+class BighubRateLimitError(BighubAPIError):
+    """Rate limited (429). Contains retry_after_seconds when the server provides it."""
+
+    retry_after_seconds: Optional[float] = None
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        if self.retry_after_seconds is not None:
+            base = f"{base} (retry_after={self.retry_after_seconds}s)"
+        return base
+
+
+@dataclass
+class BighubValidationError(BighubAPIError):
+    """Request validation error (422). Contains per-field validation details."""
+
+    validation_errors: list = field(default_factory=list)
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        if self.validation_errors:
+            base = f"{base} — {len(self.validation_errors)} validation error(s)"
         return base

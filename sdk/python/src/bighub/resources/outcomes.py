@@ -23,8 +23,14 @@ class OutcomesAPI:
         details: Optional[JSONDict] = None,
         actual_impact: Optional[JSONDict] = None,
         correction_needed: bool = False,
+        correction_description: str = "",
+        correction_cost: Optional[float] = None,
+        time_to_detect_s: Optional[float] = None,
+        time_to_resolve_s: Optional[float] = None,
         rollback_performed: bool = False,
         revenue_impact: Optional[float] = None,
+        customer_impact_count: int = 0,
+        support_tickets_created: int = 0,
         observed_at: Optional[str] = None,
         reported_by: str = "",
         tags: Optional[List[str]] = None,
@@ -45,10 +51,22 @@ class OutcomesAPI:
             body["actual_impact"] = actual_impact
         if correction_needed:
             body["correction_needed"] = True
+            if correction_description:
+                body["correction_description"] = correction_description
+            if correction_cost is not None:
+                body["correction_cost"] = correction_cost
+            if time_to_detect_s is not None:
+                body["time_to_detect_s"] = time_to_detect_s
+            if time_to_resolve_s is not None:
+                body["time_to_resolve_s"] = time_to_resolve_s
         if rollback_performed:
             body["rollback_performed"] = True
         if revenue_impact is not None:
             body["revenue_impact"] = revenue_impact
+        if customer_impact_count:
+            body["customer_impact_count"] = customer_impact_count
+        if support_tickets_created:
+            body["support_tickets_created"] = support_tickets_created
         if observed_at:
             body["observed_at"] = observed_at
         if reported_by:
@@ -71,6 +89,18 @@ class OutcomesAPI:
         """Get outcome by request_id."""
         return self._transport.request(
             method="GET", path=f"/outcomes/{request_id}"
+        )
+
+    def get_by_validation(self, validation_id: str) -> JSONDict:
+        """Get outcome by validation_id."""
+        return self._transport.request(
+            method="GET", path=f"/outcomes/by-validation/{validation_id}"
+        )
+
+    def get_by_case(self, case_id: str) -> JSONDict:
+        """Get outcome by case_id."""
+        return self._transport.request(
+            method="GET", path=f"/outcomes/by-case/{case_id}"
         )
 
     def timeline(self, request_id: str) -> JSONDict:
@@ -116,6 +146,25 @@ class OutcomesAPI:
         """Supported outcome status taxonomy."""
         return self._transport.request(method="GET", path="/outcomes/taxonomy")
 
+    def recommendation_quality(
+        self,
+        *,
+        domain: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+    ) -> JSONDict:
+        """Recommendation quality analytics: follow rate, quadrants, by_domain, examples."""
+        params: Dict[str, Any] = {}
+        if domain:
+            params["domain"] = domain
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        return self._transport.request(
+            method="GET", path="/outcomes/analytics/recommendation-quality", params=params
+        )
+
 
 class AsyncOutcomesAPI:
     """Async outcome reporting and analytics."""
@@ -134,8 +183,14 @@ class AsyncOutcomesAPI:
         details: Optional[JSONDict] = None,
         actual_impact: Optional[JSONDict] = None,
         correction_needed: bool = False,
+        correction_description: str = "",
+        correction_cost: Optional[float] = None,
+        time_to_detect_s: Optional[float] = None,
+        time_to_resolve_s: Optional[float] = None,
         rollback_performed: bool = False,
         revenue_impact: Optional[float] = None,
+        customer_impact_count: int = 0,
+        support_tickets_created: int = 0,
         observed_at: Optional[str] = None,
         reported_by: str = "",
         tags: Optional[List[str]] = None,
@@ -155,10 +210,22 @@ class AsyncOutcomesAPI:
             body["actual_impact"] = actual_impact
         if correction_needed:
             body["correction_needed"] = True
+            if correction_description:
+                body["correction_description"] = correction_description
+            if correction_cost is not None:
+                body["correction_cost"] = correction_cost
+            if time_to_detect_s is not None:
+                body["time_to_detect_s"] = time_to_detect_s
+            if time_to_resolve_s is not None:
+                body["time_to_resolve_s"] = time_to_resolve_s
         if rollback_performed:
             body["rollback_performed"] = True
         if revenue_impact is not None:
             body["revenue_impact"] = revenue_impact
+        if customer_impact_count:
+            body["customer_impact_count"] = customer_impact_count
+        if support_tickets_created:
+            body["support_tickets_created"] = support_tickets_created
         if observed_at:
             body["observed_at"] = observed_at
         if reported_by:
@@ -179,6 +246,16 @@ class AsyncOutcomesAPI:
     async def get(self, request_id: str) -> JSONDict:
         return await self._transport.request(
             method="GET", path=f"/outcomes/{request_id}"
+        )
+
+    async def get_by_validation(self, validation_id: str) -> JSONDict:
+        return await self._transport.request(
+            method="GET", path=f"/outcomes/by-validation/{validation_id}"
+        )
+
+    async def get_by_case(self, case_id: str) -> JSONDict:
+        return await self._transport.request(
+            method="GET", path=f"/outcomes/by-case/{case_id}"
         )
 
     async def timeline(self, request_id: str) -> JSONDict:
@@ -220,4 +297,23 @@ class AsyncOutcomesAPI:
     async def taxonomy(self) -> JSONDict:
         return await self._transport.request(
             method="GET", path="/outcomes/taxonomy"
+        )
+
+    async def recommendation_quality(
+        self,
+        *,
+        domain: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+    ) -> JSONDict:
+        """Recommendation quality analytics: follow rate, quadrants, by_domain, examples."""
+        params: Dict[str, Any] = {}
+        if domain:
+            params["domain"] = domain
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        return await self._transport.request(
+            method="GET", path="/outcomes/analytics/recommendation-quality", params=params
         )

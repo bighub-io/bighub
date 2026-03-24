@@ -110,8 +110,8 @@ class FakeActions:
     def submit(self, **kwargs):
         return {"allowed": True, "result": "allowed", "reason": "ok", "request_id": "req_sync_1", "echo": kwargs}
 
-    def submit_v2(self, **kwargs):
-        return {"allowed": True, "result": "allowed", "reason": "ok-v2", "request_id": "req_sync_v2", "echo": kwargs}
+    def submit_payload(self, **kwargs):
+        return {"allowed": True, "result": "allowed", "reason": "ok-payload", "request_id": "req_sync_payload", "echo": kwargs}
 
     def ingest_memory(self, **kwargs):
         self.memory_payloads.append(kwargs)
@@ -235,8 +235,8 @@ class FakeAsyncActions:
     async def submit(self, **kwargs):
         return {"allowed": True, "result": "allowed", "reason": "ok", "request_id": "req_async_1", "echo": kwargs}
 
-    async def submit_v2(self, **kwargs):
-        return {"allowed": True, "result": "allowed", "reason": "ok-v2", "request_id": "req_async_v2", "echo": kwargs}
+    async def submit_payload(self, **kwargs):
+        return {"allowed": True, "result": "allowed", "reason": "ok-payload", "request_id": "req_async_payload", "echo": kwargs}
 
     async def ingest_memory(self, **kwargs):
         self.memory_payloads.append(kwargs)
@@ -446,7 +446,7 @@ def test_guarded_openai_blocks_when_policy_denies() -> None:
     assert executed["called"] is False
 
 
-def test_guarded_openai_supports_submit_v2_mode() -> None:
+def test_guarded_openai_supports_submit_payload_mode() -> None:
     executed = {"called": False}
 
     def refund_payment(order_id: str, amount: float):
@@ -457,7 +457,7 @@ def test_guarded_openai_supports_submit_v2_mode() -> None:
         bighub_api_key="bhk_test",
         actor="AI_AGENT_001",
         domain="payments",
-        decision_mode="submit_v2",
+        decision_mode="submit_payload",
         openai_client=FakeOpenAIClient(),
         bighub_client=FakeBighubClient(),
     )
@@ -1259,4 +1259,434 @@ def test_function_call_output_format_matches_responses_api() -> None:
     parsed = json.loads(result["output"])
     assert parsed["status"] == "executed"
     assert parsed["data"] == 42
+
+
+# ---------------------------------------------------------------------------
+# Structured recommendation / trajectory tests
+# ---------------------------------------------------------------------------
+
+
+class StructuredRecommendationActions:
+    """Simulates a backend returning the new structured recommendation format."""
+
+    def __init__(self, recommendation: str = "proceed", enforcement_mode: str = "advisory") -> None:
+        self._recommendation = recommendation
+        self._enforcement_mode = enforcement_mode
+        self.memory_payloads: list = []
+        self.last_submit_kwargs: dict = {}
+
+    def submit(self, **kwargs):
+        self.last_submit_kwargs = kwargs
+        base = {
+            "allowed": self._recommendation in ("proceed", "proceed_with_caution"),
+            "result": "allowed" if self._recommendation in ("proceed", "proceed_with_caution") else "blocked",
+            "recommendation": self._recommendation,
+            "recommendation_confidence": "high",
+            "risk_score": 0.15 if self._recommendation == "proceed" else 0.85,
+            "enforcement_mode": self._enforcement_mode,
+            "request_id": "req_v2_1",
+            "intelligence": {
+                "trajectory_health": "healthy",
+                "trajectory_id": "traj_abc123",
+                "projected_regret": 0.05,
+            },
+            "decision_intelligence": {
+                "rationale": "Low risk action within normal parameters",
+                "alternatives": [],
+            },
+        }
+        if self._recommendation == "do_not_proceed":
+            base["allowed"] = False
+            base["result"] = "blocked"
+        elif self._recommendation == "review_recommended":
+            base["allowed"] = False
+            base["result"] = "requires_approval"
+            base["requires_approval"] = True
+        return base
+
+    def submit_payload(self, **kwargs):
+        return self.submit(**kwargs)
+
+    def ingest_memory(self, **kwargs):
+        self.memory_payloads.append(kwargs)
+        return {"accepted": len(kwargs.get("events", []))}
+
+
+class StructuredBighubClient:
+    def __init__(self, recommendation: str = "proceed", enforcement_mode: str = "advisory") -> None:
+        self.actions = StructuredRecommendationActions(recommendation, enforcement_mode)
+        self.outcomes = FakeOutcomes()
+        self.approvals = SimpleNamespace(
+            resolve=lambda request_id, resolution, comment=None: {
+                "request_id": request_id, "status": "approved", "resolution": resolution,
+            }
+        )
+
+    def close(self):
+        return None
+
+
+def test_resolve_decision_proceed() -> None:
+    assert BighubOpenAI._resolve_decision({"recommendation": "proceed"}) == "execute"
+    assert BighubOpenAI._resolve_decision({"recommendation": "proceed_with_caution"}) == "execute"
+
+
+def test_resolve_decision_do_not_proceed() -> None:
+    assert BighubOpenAI._resolve_decision({"recommendation": "do_not_proceed"}) == "blocked"
+
+
+def test_resolve_decision_review_recommended_with_approval() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "recommendation": "review_recommended",
+        "requires_approval": True,
+    }) == "approval_required"
+
+
+def test_resolve_decision_review_recommended_without_approval() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "recommendation": "review_recommended",
+    }) == "execute"
+
+
+def test_resolve_decision_enforced_blocked() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "enforced",
+        "enforced_verdict": "blocked",
+        "recommendation": "proceed",
+    }) == "blocked"
+
+
+def test_resolve_decision_enforced_allowed() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "enforced",
+        "enforced_verdict": "allowed",
+    }) == "execute"
+
+
+def test_resolve_decision_enforced_requires_approval() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "enforced",
+        "enforced_verdict": "requires_approval",
+    }) == "approval_required"
+
+
+def test_resolve_decision_legacy_fallback() -> None:
+    assert BighubOpenAI._resolve_decision({"allowed": True}) == "execute"
+    assert BighubOpenAI._resolve_decision({"allowed": False, "result": "blocked"}) == "blocked"
+    assert BighubOpenAI._resolve_decision({"allowed": False, "result": "requires_approval"}) == "approval_required"
+
+
+def test_structured_recommendation_fields_on_tool_result() -> None:
+    executed = {"called": False}
+
+    def refund_payment(order_id: str, amount: float):
+        executed["called"] = True
+        return {"ok": True}
+
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=StructuredBighubClient("proceed"),
+    )
+    guard.tool("refund_payment", refund_payment, value_from_args=lambda a: float(a["amount"]))
+    result = guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+
+    assert executed["called"] is True
+    last = result["execution"]["last"]
+    assert last["status"] == "executed"
+    assert last["recommendation"] == "proceed"
+    assert last["risk_score"] == 0.15
+    assert last["enforcement_mode"] == "advisory"
+
+
+def test_structured_recommendation_blocks_do_not_proceed() -> None:
+    executed = {"called": False}
+
+    def refund_payment(order_id: str, amount: float):
+        executed["called"] = True
+        return {"ok": True}
+
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=StructuredBighubClient("do_not_proceed"),
+    )
+    guard.tool("refund_payment", refund_payment, value_from_args=lambda a: float(a["amount"]))
+    result = guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+
+    assert executed["called"] is False
+    last = result["execution"]["last"]
+    assert last["status"] == "blocked"
+    assert last["recommendation"] == "do_not_proceed"
+
+
+def test_session_id_injected_into_context() -> None:
+    bighub = StructuredBighubClient("proceed")
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        session_id="sess_custom_42",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=bighub,
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+
+    ctx = bighub.actions.last_submit_kwargs.get("context") or {}
+    assert ctx.get("session_id") == "sess_custom_42"
+
+
+def test_session_id_auto_generated_when_not_provided() -> None:
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=StructuredBighubClient("proceed"),
+    )
+    assert guard.session_id is not None
+    assert len(guard.session_id) > 0
+
+
+def test_trajectory_id_propagated_across_calls() -> None:
+    bighub = StructuredBighubClient("proceed")
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=bighub,
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    assert guard._trajectory_id == "traj_abc123"
+
+
+def test_check_tool_returns_resolved_action() -> None:
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=StructuredBighubClient("proceed"),
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    decision = guard.check_tool("refund_payment", {"order_id": "ord_1", "amount": 120.0})
+    assert decision["_resolved_action"] == "execute"
+    assert decision["recommendation"] == "proceed"
+    assert decision["risk_score"] == 0.15
+
+
+def test_enrich_result_extracts_trajectory_health() -> None:
+    result = ToolResult(status="executed", decision={})
+    BighubOpenAI._enrich_result(result, {
+        "recommendation": "proceed_with_caution",
+        "risk_score": 0.42,
+        "enforcement_mode": "advisory",
+        "intelligence": {"trajectory_health": "degrading"},
+    })
+    assert result.recommendation == "proceed_with_caution"
+    assert result.risk_score == 0.42
+    assert result.enforcement_mode == "advisory"
+    assert result.trajectory_health == "degrading"
+
+
+def test_fail_open_includes_recommendation_fields() -> None:
+    class FailingActions:
+        def submit(self, **kwargs):
+            raise ConnectionError("backend down")
+
+        def ingest_memory(self, **kwargs):
+            return {"accepted": 0}
+
+    class FailingBighubClient:
+        def __init__(self) -> None:
+            self.actions = FailingActions()
+            self.outcomes = FakeOutcomes()
+
+        def close(self):
+            return None
+
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=FailingBighubClient(),
+        fail_mode="open",
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    result = guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    last = result["execution"]["last"]
+    assert last["status"] == "executed"
+    assert last["recommendation"] == "proceed"
+    assert last["enforcement_mode"] == "advisory"
+
+
+def test_fail_closed_includes_recommendation_fields() -> None:
+    class FailingActions:
+        def submit(self, **kwargs):
+            raise ConnectionError("backend down")
+
+        def ingest_memory(self, **kwargs):
+            return {"accepted": 0}
+
+    class FailingBighubClient:
+        def __init__(self) -> None:
+            self.actions = FailingActions()
+            self.outcomes = FakeOutcomes()
+
+        def close(self):
+            return None
+
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=FailingBighubClient(),
+        fail_mode="closed",
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    result = guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    last = result["execution"]["last"]
+    assert last["status"] == "blocked"
+    assert last["recommendation"] == "do_not_proceed"
+    assert last["enforcement_mode"] == "advisory"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_decision — enforced mode edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_decision_enforced_missing_verdict_blocks() -> None:
+    """Enforced mode with no enforced_verdict must fail-safe to blocked."""
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "enforced",
+        "recommendation": "proceed",
+    }) == "blocked"
+
+
+def test_resolve_decision_enforced_unknown_verdict_blocks() -> None:
+    """Enforced mode with an unknown verdict string must fail-safe to blocked."""
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "enforced",
+        "enforced_verdict": "some_future_verdict",
+    }) == "blocked"
+
+
+def test_resolve_decision_enforced_proceed_allows() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "enforced",
+        "enforced_verdict": "proceed",
+    }) == "execute"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_decision — review mode
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_decision_review_mode_proceed() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "review",
+        "recommendation": "proceed",
+    }) == "execute"
+
+
+def test_resolve_decision_review_mode_proceed_with_caution() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "review",
+        "recommendation": "proceed_with_caution",
+    }) == "approval_required"
+
+
+def test_resolve_decision_review_mode_review_recommended() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "review",
+        "recommendation": "review_recommended",
+    }) == "approval_required"
+
+
+def test_resolve_decision_review_mode_do_not_proceed() -> None:
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "review",
+        "recommendation": "do_not_proceed",
+    }) == "blocked"
+
+
+def test_resolve_decision_review_mode_unknown_recommendation() -> None:
+    """Review mode with unknown/missing recommendation defaults to approval."""
+    assert BighubOpenAI._resolve_decision({
+        "enforcement_mode": "review",
+    }) == "approval_required"
+
+
+# ---------------------------------------------------------------------------
+# _enrich_result — trajectory_health priority
+# ---------------------------------------------------------------------------
+
+
+def test_enrich_result_prefers_decision_intelligence_trajectory_health() -> None:
+    """When both decision_intelligence and intelligence have trajectory_health,
+    the value from decision_intelligence wins."""
+    result = ToolResult(status="executed", decision={})
+    BighubOpenAI._enrich_result(result, {
+        "decision_intelligence": {"trajectory_health": "healthy"},
+        "intelligence": {"trajectory_health": "degrading"},
+    })
+    assert result.trajectory_health == "healthy"
+
+
+def test_enrich_result_falls_back_to_intelligence_trajectory_health() -> None:
+    """When decision_intelligence has no trajectory_health, fall back to intelligence."""
+    result = ToolResult(status="executed", decision={})
+    BighubOpenAI._enrich_result(result, {
+        "decision_intelligence": {"rationale": "ok"},
+        "intelligence": {"trajectory_health": "degrading"},
+    })
+    assert result.trajectory_health == "degrading"
+
+
+def test_enrich_result_handles_bad_risk_score() -> None:
+    """Non-numeric risk_score should not crash — just set None."""
+    result = ToolResult(status="executed", decision={})
+    BighubOpenAI._enrich_result(result, {
+        "risk_score": "not_a_number",
+    })
+    assert result.risk_score is None
+
+
+# ---------------------------------------------------------------------------
+# list_tools
+# ---------------------------------------------------------------------------
+
+
+def test_list_tools_returns_registered_tools() -> None:
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="agent",
+        domain="test",
+        bighub_client=type("C", (), {
+            "actions": type("A", (), {"submit": lambda **kw: {}, "ingest_memory": lambda **kw: {}})(),
+            "outcomes": type("O", (), {"report": lambda **kw: {}})(),
+            "close": lambda self: None,
+        })(),
+        openai_client=type("OAI", (), {"responses": type("R", (), {"create": lambda **kw: None})()})(),
+    )
+    guard.register_tool("my_tool", lambda x: x, description="A tool", parameters_schema={
+        "type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"], "additionalProperties": False,
+    })
+    tools = guard.list_tools()
+    assert len(tools) == 1
+    assert tools[0]["type"] == "function"
+    assert tools[0]["function"]["name"] == "my_tool"
+    assert tools[0]["function"]["description"] == "A tool"
+    assert tools[0]["function"]["strict"] is True
 

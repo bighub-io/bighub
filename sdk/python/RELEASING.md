@@ -36,10 +36,10 @@ For any MAJOR release, include an explicit migration note in `CHANGELOG.md`.
 6. **Cross-surface consistency gate**
   - Ensure `sdk/python/README.md`, `adapters/python/openai/README.md`, and `servers/mcp/README.md` use aligned method names and field names
   - Ensure outcome statuses in snippets are valid backend statuses
-  - Ensure primary examples use `actions.submit` as Free BETA default and present `submit_v2` as advanced mode
+  - Ensure primary examples use `actions.submit` as Free BETA default and present `submit_payload` as advanced mode
 7. **Backend contract gate**
-  - Verify SDK resource paths still match `bighub-core` routes for actions/rules/outcomes/auth
-  - Verify plan-gated endpoint notes are still accurate (`submit_v2`, observer stats, dry-run validation, etc.)
+  - Verify SDK resource paths still match `bighub-core` routes for actions/rules (publicly exposed as constraints)/outcomes/auth
+  - Verify plan-gated endpoint notes are still accurate (`submit_payload`, observer stats, dry-run validation, etc.)
 
 ## Release template example
 

@@ -10,7 +10,7 @@ from bighub import AsyncBighubClient
 @pytest.mark.asyncio
 async def test_async_client_submit() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/actions/submit"
+        assert request.url.path == "/actions/evaluate"
         return httpx.Response(200, json={"allowed": True, "risk_score": 0.1})
 
     client = AsyncBighubClient(api_key="bhk_test")
@@ -22,7 +22,7 @@ async def test_async_client_submit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_rules_validate_dry_run_and_kill_switch() -> None:
+async def test_async_constraints_validate_dry_run_and_kill_switch() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/rules/validate/dry-run":
             return httpx.Response(200, json={"allowed": False, "dry_run": True})
@@ -33,7 +33,7 @@ async def test_async_rules_validate_dry_run_and_kill_switch() -> None:
     client = AsyncBighubClient(api_key="bhk_test")
     client._transport._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=5.0)
 
-    validate_result = await client.rules.validate_dry_run({"action": "reorder_stock", "actor": "AI_AGENT"})
+    validate_result = await client.constraints.validate_dry_run({"action": "reorder_stock", "actor": "AI_AGENT"})
     kill_switch_result = await client.kill_switch.status()
 
     assert validate_result["dry_run"] is True
@@ -121,7 +121,7 @@ async def test_async_auth_events_approvals_paths() -> None:
 @pytest.mark.asyncio
 async def test_async_contract_aliases_for_actions_retrieval_and_ingest_reconcile() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/actions/submit" and request.method == "POST":
+        if request.url.path == "/actions/evaluate" and request.method == "POST":
             payload = json.loads(request.content.decode("utf-8"))
             assert payload["context"] == {"order_id": "ord_async"}
             assert "metadata" not in payload

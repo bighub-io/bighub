@@ -150,6 +150,13 @@ print(precedents["outcomes"])
 | `client.insights` | Retrieve learned advisories and risk patterns |
 | `client.simulations` | Inspect simulation snapshots and accuracy |
 
+### Operating layer
+
+| Resource | Purpose |
+|---|---|
+| `client.constraints` | Configure explicit operating limits and intervention boundaries |
+| `client.rules` | Backward-compatible alias for `client.constraints` |
+
 ## Decision Cases
 
 A DecisionCase is the unit BIGHUB uses to connect:

@@ -34,7 +34,7 @@ client.close()
 
 - Free BETA limits: 3 agents, 2,500 actions/month, 30 days history, 1 environment.
 - `actions.submit(...)` is the default endpoint in Free BETA.
-- `actions.submit_v2(...)` is available as an advanced action submission endpoint.
+- `actions.submit_payload(...)` is available as an advanced action submission endpoint.
 - Use valid outcome statuses such as `SUCCESS`, `FAILURE`, `ROLLBACK`, `INCIDENT`, `CHURN`, or `NO_EFFECT`.
 
 See [sdk/python/](../../sdk/python/) and [adapters/python/openai/](../../adapters/python/openai/).

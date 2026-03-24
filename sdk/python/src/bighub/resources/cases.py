@@ -122,25 +122,55 @@ class CasesAPI:
     def precedents(
         self,
         *,
-        domain: str,
+        domain: str = "",
         action: str,
         tool: Optional[str] = None,
-        actor_type: str = "AI_AGENT",
-        risk_score: Optional[float] = None,
-        axes: Optional[JSONDict] = None,
+        actor_type: Optional[str] = None,
+        action_type: Optional[str] = None,
+        arguments: Optional[JSONDict] = None,
+        value: Optional[float] = None,
+        target: Optional[str] = None,
+        axes: Optional[Dict[str, float]] = None,
+        axes_risk_score: Optional[float] = None,
+        intent: Optional[str] = None,
+        min_similarity: float = 0.5,
+        limit: int = 20,
     ) -> JSONDict:
-        """Get precedent intelligence for a proposed action."""
+        """Get precedent intelligence for a proposed action.
+
+        Sends nested ActionInput / ContextInput objects matching the backend
+        PrecedentRequest schema.
+        """
+        action_input: Dict[str, Any] = {"action": action}
+        if tool:
+            action_input["tool"] = tool
+        if actor_type:
+            action_input["action_type"] = actor_type
+        if action_type:
+            action_input["action_type"] = action_type
+        if arguments:
+            action_input["arguments"] = arguments
+        if value is not None:
+            action_input["value"] = value
+        if target:
+            action_input["target"] = target
+
+        context_input: Dict[str, Any] = {}
+        if axes:
+            context_input["axes"] = axes
+        if axes_risk_score is not None:
+            context_input["axes_risk_score"] = axes_risk_score
+        if intent:
+            context_input["intent"] = intent
+
         body: Dict[str, Any] = {
             "domain": domain,
-            "action": action,
-            "actor_type": actor_type,
+            "action": action_input,
+            "min_similarity": min_similarity,
+            "limit": limit,
         }
-        if tool:
-            body["tool"] = tool
-        if risk_score is not None:
-            body["risk_score"] = risk_score
-        if axes:
-            body["axes"] = axes
+        if context_input:
+            body["context"] = context_input
         return self._transport.request(
             method="POST", path="/cases/precedents", json_body=body
         )
@@ -273,24 +303,50 @@ class AsyncCasesAPI:
     async def precedents(
         self,
         *,
-        domain: str,
+        domain: str = "",
         action: str,
         tool: Optional[str] = None,
-        actor_type: str = "AI_AGENT",
-        risk_score: Optional[float] = None,
-        axes: Optional[JSONDict] = None,
+        actor_type: Optional[str] = None,
+        action_type: Optional[str] = None,
+        arguments: Optional[JSONDict] = None,
+        value: Optional[float] = None,
+        target: Optional[str] = None,
+        axes: Optional[Dict[str, float]] = None,
+        axes_risk_score: Optional[float] = None,
+        intent: Optional[str] = None,
+        min_similarity: float = 0.5,
+        limit: int = 20,
     ) -> JSONDict:
+        action_input: Dict[str, Any] = {"action": action}
+        if tool:
+            action_input["tool"] = tool
+        if actor_type:
+            action_input["action_type"] = actor_type
+        if action_type:
+            action_input["action_type"] = action_type
+        if arguments:
+            action_input["arguments"] = arguments
+        if value is not None:
+            action_input["value"] = value
+        if target:
+            action_input["target"] = target
+
+        context_input: Dict[str, Any] = {}
+        if axes:
+            context_input["axes"] = axes
+        if axes_risk_score is not None:
+            context_input["axes_risk_score"] = axes_risk_score
+        if intent:
+            context_input["intent"] = intent
+
         body: Dict[str, Any] = {
             "domain": domain,
-            "action": action,
-            "actor_type": actor_type,
+            "action": action_input,
+            "min_similarity": min_similarity,
+            "limit": limit,
         }
-        if tool:
-            body["tool"] = tool
-        if risk_score is not None:
-            body["risk_score"] = risk_score
-        if axes:
-            body["axes"] = axes
+        if context_input:
+            body["context"] = context_input
         return await self._transport.request(
             method="POST", path="/cases/precedents", json_body=body
         )

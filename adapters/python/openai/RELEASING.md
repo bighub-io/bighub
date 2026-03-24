@@ -69,7 +69,7 @@ git push origin sdk-openai-vX.Y.Z
   - `python -m build`
   - `python -m twine check dist\*`
 - [ ] README snippets align with current SDK/public API names and statuses
-- [ ] README reflects Responses API v2 compatibility
+- [ ] README reflects Responses API compatibility
 - [ ] Upload: `python -m twine upload dist/*`
 - [ ] Tag:
   - `git tag sdk-openai-vX.Y.Z`

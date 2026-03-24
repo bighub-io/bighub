@@ -168,7 +168,7 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 - First institutional-grade SDK baseline (sync + async clients).
 - Public clients: `BighubClient`, `AsyncBighubClient`.
 - Resources:
-  - `actions`: submit, submit_v2, dry_run, verify_validation, observer_stats, dashboard_summary, status
+  - `actions`: submit, submit_payload, dry_run, verify_validation, observer_stats, dashboard_summary, status
   - `auth`: signup, login, refresh, logout
   - `rules`: create, list, get, update, delete, pause, resume, dry_run, validate, validate_dry_run, domains, versions, purge_idempotency
   - `kill_switch`: status, activate, deactivate

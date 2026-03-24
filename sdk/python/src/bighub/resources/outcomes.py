@@ -146,6 +146,12 @@ class OutcomesAPI:
         """Supported outcome status taxonomy."""
         return self._transport.request(method="GET", path="/outcomes/taxonomy")
 
+    def partner_view(self, domain: str) -> JSONDict:
+        """Get a self-contained partner view for one domain: KPIs, trend, examples, sparse evidence."""
+        return self._transport.request(
+            method="GET", path=f"/outcomes/analytics/partner-view/{domain}"
+        )
+
     def recommendation_quality(
         self,
         *,
@@ -297,6 +303,12 @@ class AsyncOutcomesAPI:
     async def taxonomy(self) -> JSONDict:
         return await self._transport.request(
             method="GET", path="/outcomes/taxonomy"
+        )
+
+    async def partner_view(self, domain: str) -> JSONDict:
+        """Get a self-contained partner view for one domain."""
+        return await self._transport.request(
+            method="GET", path=f"/outcomes/analytics/partner-view/{domain}"
         )
 
     async def recommendation_quality(

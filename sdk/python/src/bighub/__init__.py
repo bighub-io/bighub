@@ -78,6 +78,7 @@ from .types import (
     RecommendationQualityExamples,
     RecommendationQualityQuadrants,
     RecommendationQualityResponse,
+    RecommendationQualityTrendPoint,
     RefreshTokenPayload,
     RoutingVerdictDict,
     RuleCreateRequest,
@@ -191,6 +192,7 @@ __all__ = [
     "RecommendationQualityByActor",
     "RecommendationQualityExample",
     "RecommendationQualityExamples",
+    "RecommendationQualityTrendPoint",
     # API Keys
     "APIKeyCreateRequest",
     "APIKeyCreateResponse",

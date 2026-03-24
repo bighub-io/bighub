@@ -1308,6 +1308,24 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     },
   );
 
+  server.registerTool(
+    "bighub_outcomes_partner_view",
+    {
+      description:
+        "Self-contained partner/domain view: decisions evaluated, follow rate, positive after following, trend, by-action breakdown, sparse evidence pockets, and helped/missed examples.",
+      inputSchema: {
+        domain: z.string().describe("The domain to generate the partner view for"),
+      },
+    },
+    async ({ domain }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: `/outcomes/analytics/partner-view/${encodeURIComponent(domain)}`,
+        }),
+      ),
+  );
+
   // ---------------------------------------------------------------------------
   // Precedents — Case-based reasoning from past decisions
   // ---------------------------------------------------------------------------

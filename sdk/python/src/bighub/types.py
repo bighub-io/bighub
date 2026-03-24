@@ -784,6 +784,16 @@ class RecommendationQualityExamples(TypedDict, total=False):
     missed: List[RecommendationQualityExample]
 
 
+class RecommendationQualityTrendPoint(TypedDict, total=False):
+    week: Optional[str]
+    total: int
+    followed: int
+    ignored: int
+    follow_rate: float
+    positive_after_following: Optional[float]
+    quadrants: RecommendationQualityQuadrants
+
+
 class RecommendationQualityResponse(TypedDict, total=False):
     total_with_outcome: int
     follow_rate: Optional[float]
@@ -791,4 +801,5 @@ class RecommendationQualityResponse(TypedDict, total=False):
     quadrants: RecommendationQualityQuadrants
     by_domain: List[RecommendationQualityByDomain]
     by_actor: List[RecommendationQualityByActor]
+    trend: List[RecommendationQualityTrendPoint]
     examples: RecommendationQualityExamples

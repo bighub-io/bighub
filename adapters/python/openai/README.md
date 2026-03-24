@@ -1,8 +1,8 @@
 # bighub-openai
 
-> OpenAI adapter for decision learning on tool calls.
+**`bighub-openai` adds BIGHUB's decision layer to OpenAI tool calls, returning structured recommendations before execution and learning from real outcomes automatically.**
 
-`bighub-openai` connects the OpenAI Responses API to BIGHUB so tool calls are evaluated before execution, receive structured recommendations, and learn from real outcomes automatically.
+> OpenAI adapter for decision learning on tool calls.
 
 ```text
 OpenAI Responses API  →  bighub-openai          →  BIGHUB
@@ -10,6 +10,30 @@ tool call             →  evaluate                →  recommendation + confide
 agent / runtime acts  →  execution or escalation
 real outcome          →  report (automatic)      →  future recommendations improve
 ```
+
+---
+
+## Table of contents
+
+**Start here**
+
+- [Install](#install)
+- [Quickstart](#quickstart)
+- [When to use bighub-openai](#when-to-use-bighub-openai)
+- [How It Works](#how-it-works)
+- [Response Shape](#response-shape)
+
+**Configuration & usage**
+
+- [Configuration](#configuration) · [Registering tools](#registering-tools) · [Streaming](#streaming) · [Async](#async) · [Human-in-the-loop approvals](#human-in-the-loop-approvals)
+
+**Learning loop**
+
+- [Automatic outcome reporting](#automatic-outcome-reporting) · [Decision memory](#decision-memory)
+
+**Reference**
+
+- [Context manager](#context-manager) · [API Reference](#api-reference) · [Links](#links)
 
 ---
 
@@ -66,13 +90,25 @@ print(last["status"])                                  # executed, blocked, appr
 
 ---
 
+## When to use bighub-openai
+
+Use this adapter when your OpenAI-based agent makes tool calls that:
+
+- **Cost money or change state** — refunds, transfers, account modifications, API calls with side effects
+- **Vary in risk** — some calls are safe, others need review or caution depending on context
+- **Benefit from learning** — the same tool call may be better or worse depending on outcomes you've seen before
+
+If your agent only reads data or produces text, you don't need this. It's designed for agents that act in the real world through tool calls.
+
+---
+
 ## How It Works
 
 For every tool call, the adapter follows the same loop:
 
 1. The model proposes a tool call
 2. The adapter captures action, arguments, actor, and domain
-3. BIGHUB evaluates the action in context
+3. BIGHUB evaluates the action in context — including trajectory and precedents
 4. A structured recommendation is returned
 5. The adapter decides how to handle execution based on mode:
    - **advisory** — surfaces the recommendation; the agent executes by default
@@ -125,8 +161,8 @@ For every tool call, the adapter follows the same loop:
 | Status | Description |
 |---|---|
 | `executed` | Tool ran successfully |
-| `blocked` | BIGHUB or runtime prevented execution |
-| `approval_required` | Waiting for human approval |
+| `blocked` | Runtime prevented execution (enforced mode or fail-safe) |
+| `approval_required` | Waiting for human approval (review mode) |
 | `tool_error` | Tool raised an exception during execution |
 
 Legacy fields such as `allowed`, `result`, and `reason` may still be present for backward compatibility, but they are not the primary product surface.

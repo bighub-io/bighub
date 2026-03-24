@@ -1,8 +1,8 @@
 # @bighub/bighub-mcp
 
-> MCP server for decision learning on agent actions.
+**BIGHUB's decision layer as an MCP server. Evaluate agent actions, receive structured recommendations, report outcomes, and improve future decisions — from any MCP-compatible client.**
 
-Use BIGHUB from any [Model Context Protocol](https://modelcontextprotocol.io) client to evaluate agent actions, receive structured recommendations, report real outcomes, and improve future decisions over time.
+> MCP server for decision learning on agent actions.
 
 ```text
 MCP client
@@ -13,6 +13,27 @@ BIGHUB API
    ↓
 evaluate → recommend → agent acts → report outcome → learn
 ```
+
+---
+
+## Table of contents
+
+**Start here**
+
+- [Install](#install)
+- [Quickstart](#quickstart)
+- [When to use bighub-mcp](#when-to-use-bighub-mcp)
+- [Typical MCP Loop](#typical-mcp-loop)
+- [Structured recommendation](#structured-recommendation)
+- [Trajectory-aware evaluation](#trajectory-aware-evaluation)
+
+**Tool reference**
+
+- [Core loop](#core-loop) · [Actions](#actions) · [Outcomes](#outcomes) · [Decision cases](#decision-cases) · [Precedents](#precedents) · [Calibration](#calibration) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Learning](#learning) · [Features](#features) · [Runtime ingestion](#runtime-ingestion) · [Operating constraints](#operating-constraints) · [Approvals & kill switch](#approvals--kill-switch) · [Events](#events) · [Webhooks](#webhooks) · [API keys](#api-keys) · [Auth](#auth) · [Utility](#utility)
+
+**Reference**
+
+- [Environment Variables](#environment-variables) · [Free BETA](#free-beta) · [Local Development](#local-development) · [Links](#links)
 
 ---
 
@@ -60,6 +81,19 @@ Works with MCP-compatible clients such as Claude Desktop and Cursor.
 
 ---
 
+## When to use bighub-mcp
+
+Use this server when your MCP-connected agent performs actions that:
+
+- **Have real consequences** — financial, operational, or reputational impact
+- **Are ambiguous or multi-step** — the right call depends on context and trajectory
+- **Produce observable outcomes** — you can report what actually happened
+- **Need to improve over time** — static instructions aren't enough
+
+If your agent only answers questions or performs read-only lookups, you don't need this. It's designed for agents that make decisions with real-world consequences.
+
+---
+
 ## Typical MCP Loop
 
 1. Submit a decision for evaluation
@@ -102,11 +136,13 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 
 ---
 
-## Complete Tool Reference
+# Complete Tool Reference
 
 125 tools organized by domain. The core loop tools are listed first.
 
-### Core loop
+---
+
+## Core loop
 
 | Tool | Description |
 |---|---|
@@ -116,7 +152,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_calibration_report` | Calibration report (prediction vs reality) |
 | `bighub_insights_advise` | Learned advisories for an action |
 
-### Actions
+---
+
+## Actions
 
 | Tool | Description |
 |---|---|
@@ -136,7 +174,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_actions_memory_refresh_aggregates` | Refresh memory aggregates |
 | `bighub_actions_memory_recommendations` | Pattern-based recommendations from memory |
 
-### Outcomes
+---
+
+## Outcomes
 
 | Tool | Description |
 |---|---|
@@ -152,7 +192,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_outcomes_recommendation_quality` | Follow rate, quadrants, trend, by domain/actor |
 | `bighub_outcomes_partner_view` | Self-contained domain view with KPIs and examples |
 
-### Decision cases
+---
+
+## Decision cases
 
 | Tool | Description |
 |---|---|
@@ -163,7 +205,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_cases_precedents` | Precedent intelligence for a proposed action |
 | `bighub_cases_calibration` | Calibration metrics for cases |
 
-### Precedents
+---
+
+## Precedents
 
 | Tool | Description |
 |---|---|
@@ -171,7 +215,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_precedents_signals` | Aggregated precedent signals |
 | `bighub_precedents_stats` | Precedent index statistics |
 
-### Calibration
+---
+
+## Calibration
 
 | Tool | Description |
 |---|---|
@@ -183,7 +229,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_calibration_observe` | Submit a calibration observation |
 | `bighub_calibration_quality_history` | Daily quality score over time |
 
-### Multi-signal retrieval
+---
+
+## Multi-signal retrieval
 
 | Tool | Description |
 |---|---|
@@ -195,7 +243,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_retrieval_compare` | Compare two strategies |
 | `bighub_retrieval_stats` | Retrieval index statistics |
 
-### Insights
+---
+
+## Insights
 
 | Tool | Description |
 |---|---|
@@ -204,7 +254,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_insights_learn` | Learning refresh |
 | `bighub_insights_profile` | Action/tool profile |
 
-### Simulations
+---
+
+## Simulations
 
 | Tool | Description |
 |---|---|
@@ -215,7 +267,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_simulations_accuracy` | Domain-level accuracy |
 | `bighub_simulations_stats` | Simulation statistics |
 
-### Learning
+---
+
+## Learning
 
 | Tool | Description |
 |---|---|
@@ -224,7 +278,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_learning_recompute` | Trigger learning recomputation |
 | `bighub_learning_backfill` | Backfill learning artifacts |
 
-### Features
+---
+
+## Features
 
 | Tool | Description |
 |---|---|
@@ -240,7 +296,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_features_schema` | Feature schema |
 | `bighub_features_stats` | Feature statistics |
 
-### Runtime ingestion
+---
+
+## Runtime ingestion
 
 | Tool | Description |
 |---|---|
@@ -254,7 +312,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_ingest_stats` | Ingestion statistics |
 | `bighub_ingest_adapters` | List available adapters |
 
-### Operating constraints
+---
+
+## Operating constraints
 
 | Tool | Description |
 |---|---|
@@ -273,7 +333,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_constraints_apply_patch` | Apply a JSON Patch |
 | `bighub_constraints_purge_idempotency` | Admin: purge idempotency keys |
 
-### Approvals & kill switch
+---
+
+## Approvals & kill switch
 
 | Tool | Description |
 |---|---|
@@ -283,14 +345,18 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_kill_switch_activate` | Activate kill switch |
 | `bighub_kill_switch_deactivate` | Deactivate kill switch |
 
-### Events
+---
+
+## Events
 
 | Tool | Description |
 |---|---|
 | `bighub_events_list` | Query event stream |
 | `bighub_events_stats` | Event statistics |
 
-### Webhooks
+---
+
+## Webhooks
 
 | Tool | Description |
 |---|---|
@@ -305,7 +371,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_webhooks_verify_signature` | Verify webhook signature |
 | `bighub_webhooks_replay_failed_delivery` | Replay a failed delivery |
 
-### API keys
+---
+
+## API keys
 
 | Tool | Description |
 |---|---|
@@ -316,7 +384,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_api_keys_validate` | Validate an API key |
 | `bighub_api_keys_scopes` | List available scopes |
 
-### Auth
+---
+
+## Auth
 
 | Tool | Description |
 |---|---|
@@ -325,7 +395,9 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_auth_refresh` | Refresh token |
 | `bighub_auth_logout` | Log out |
 
-### Utility
+---
+
+## Utility
 
 | Tool | Description |
 |---|---|

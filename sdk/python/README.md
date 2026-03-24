@@ -1,14 +1,42 @@
 # BIGHUB Python SDK
 
-> Evaluate agent actions, receive structured recommendations, report real outcomes, and improve future decisions from experience.
+**BIGHUB is a decision layer for AI agents. It evaluates decisions in context, returns structured recommendations, and improves over time from real outcomes.**
 
-The BIGHUB Python SDK connects your agents to a decision layer that learns over time.
+> Evaluate agent actions, receive structured recommendations, report real outcomes, and improve future decisions from experience.
 
 ```bash
 pip install bighub
 ```
 
 Python 3.9+. Single dependency: `httpx`.
+
+---
+
+## Table of contents
+
+**Start here**
+
+- [Quick Start](#quick-start)
+- [When to use BIGHUB](#when-to-use-bighub)
+- [Structured recommendation](#structured-recommendation)
+- [Trajectory-aware evaluation](#trajectory-aware-evaluation)
+- [Core Loop (detailed)](#core-loop-detailed)
+
+**Why it's different**
+
+- [Outcomes](#outcomes)
+- [Recommendation quality](#recommendation-quality)
+- [Decision Cases](#decision-cases)
+- [Precedents](#precedents)
+- [Calibration](#calibration)
+
+**Platform resources**
+
+- [Batch evaluation](#batch-evaluation) · [Dry run](#dry-run) · [Live sessions](#live-sessions) · [Decision memory](#decision-memory) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Runtime ingestion](#runtime-ingestion) · [Learning controls](#learning-controls) · [Operating constraints](#operating-constraints) · [Events](#events) · [Approvals](#approvals) · [Webhooks](#webhooks)
+
+**Reference**
+
+- [Async client](#async-client) · [Auth](#auth) · [Error handling](#error-handling) · [Reliability](#reliability) · [API Reference](#api-reference) · [Free Beta](#free-beta) · [Links](#links)
 
 ---
 
@@ -54,6 +82,19 @@ client.close()
 That is the core loop:
 
 **submit for evaluation → inspect recommendation → act → report outcome → learn**
+
+---
+
+## When to use BIGHUB
+
+Use BIGHUB when agent actions:
+
+- **Have real consequences** — financial, operational, or reputational impact
+- **Are ambiguous or multi-step** — the right call depends on context, trajectory, and prior outcomes
+- **Produce observable outcomes** — you can report what actually happened after execution
+- **Need to improve over time** — static rules aren't enough; you want recommendations that get better with experience
+
+If your agent just reads data or performs idempotent lookups, you probably don't need BIGHUB. It's designed for actions where mistakes cost money, time, or trust.
 
 ---
 
@@ -135,6 +176,209 @@ precedents = client.precedents.query(
 print(precedents["total_precedents"])
 print(precedents["outcomes"])
 ```
+
+---
+
+# Why it's different
+
+The sections below show how BIGHUB closes the learning loop: real outcomes, recommendation quality tracking, decision cases, precedent intelligence, and calibration.
+
+---
+
+## Outcomes
+
+### Report an outcome
+
+```python
+client.outcomes.report(
+    request_id=result["request_id"],
+    status="FAILURE",
+    description="Payment processor rejected the refund",
+    revenue_impact=-450.0,
+    correction_needed=True,
+    correction_description="Manual refund required",
+    correction_cost=25.0,
+    time_to_detect_s=3600,
+    time_to_resolve_s=7200,
+    rollback_performed=True,
+    tags=["payment", "refund"],
+)
+```
+
+### Report outcomes in batch
+
+```python
+client.outcomes.report_batch([
+    {"request_id": "act_001", "status": "SUCCESS", "description": "OK"},
+    {"request_id": "act_002", "status": "FAILURE", "description": "Timeout"},
+])
+```
+
+### Retrieve outcomes
+
+```python
+outcome = client.outcomes.get("act_abc123")
+
+outcome_v = client.outcomes.get_by_validation("val_xyz789")
+
+outcome_c = client.outcomes.get_by_case("case_456")
+```
+
+### Outcome timeline
+
+```python
+timeline = client.outcomes.timeline("act_abc123")
+```
+
+### Pending outcomes
+
+```python
+pending = client.outcomes.pending(min_age_hours=24, limit=100)
+```
+
+### Outcome analytics
+
+```python
+analytics = client.outcomes.analytics(domain="customer_transactions")
+
+taxonomy = client.outcomes.taxonomy()
+```
+
+---
+
+## Recommendation quality
+
+Track whether BIGHUB's recommendations lead to better outcomes:
+
+```python
+quality = client.outcomes.recommendation_quality(domain="customer_transactions")
+
+print(quality["follow_rate"])
+print(quality["positive_after_following"])
+print(quality["quadrants"])   # followed_positive, followed_negative, ignored_positive, ignored_negative
+print(quality["trend"])       # weekly time series
+```
+
+### Partner view
+
+Self-contained domain view with KPIs, trend, evidence pockets, and examples:
+
+```python
+view = client.outcomes.partner_view("customer_transactions")
+# overview, recommendation_quality, trend, by_action, sparse_evidence, examples
+```
+
+---
+
+## Decision Cases
+
+A DecisionCase connects the proposed action, context, recommendation, and real outcome:
+
+```python
+case = client.cases.create(
+    domain="customer_transactions",
+    action={"tool": "refund_full", "action": "refund_full", "value": 900.0},
+    verdict={"verdict": "ALLOWED", "risk_score": 0.35, "confidence": 0.86},
+    context={"axes": {"reversibility": 0.9}, "risk_score": 0.35},
+    goal_summary="Customer requested refund for delayed order",
+    trigger_source="support_ticket",
+)
+
+client.cases.report_outcome(
+    case["case_id"],
+    status="FRAUD",
+    description="Fraudulent refund detected 3 days later",
+    correction_needed=True,
+    revenue_impact=-900.0,
+)
+```
+
+The `verdict` field is the internal execution verdict. The primary external surface is the structured recommendation returned by `client.actions.submit(...)`.
+
+### Query and filter cases
+
+```python
+cases = client.cases.list(
+    domain="customer_transactions",
+    has_outcome=True,
+    min_risk_score=0.3,
+    limit=20,
+)
+
+case = client.cases.get("case_abc123")
+```
+
+### Case-level precedents and calibration
+
+```python
+precedents = client.cases.precedents(
+    action="refund_full",
+    domain="customer_transactions",
+    axes={"reversibility": 0.9},
+    min_similarity=0.5,
+)
+
+cal = client.cases.calibration(domain="customer_transactions")
+```
+
+---
+
+## Precedents
+
+```python
+precedents = client.precedents.query(
+    domain="customer_transactions",
+    action="refund_full",
+    risk_score=0.35,
+    require_outcome=True,
+)
+
+signals = client.precedents.signals(
+    domain="customer_transactions",
+    action="refund_full",
+)
+
+stats = client.precedents.stats()
+```
+
+---
+
+## Calibration
+
+Compare prediction vs reality:
+
+```python
+report = client.calibration.report(domain="customer_transactions")
+print(report["calibration_quality"])
+print(report["bias_direction"])
+
+reliability = client.calibration.reliability(domain="customer_transactions")
+
+drift = client.calibration.drift(window_days=14, domain="customer_transactions")
+
+breakdown = client.calibration.breakdown(by="domain")
+
+feedback = client.calibration.feedback(domain="customer_transactions")
+
+history = client.calibration.quality_history(days=30, domain="customer_transactions")
+```
+
+### Observe a calibration data point
+
+```python
+client.calibration.observe(
+    case_id="case_abc123",
+    predicted_risk=0.35,
+    outcome_status="FRAUD",
+    domain="customer_transactions",
+)
+```
+
+---
+
+# Platform resources
+
+Advanced features for teams that need batch processing, live sessions, memory, simulations, operating constraints, and more.
 
 ---
 
@@ -233,142 +477,6 @@ recs = client.actions.memory_recommendations(
 
 ---
 
-## Outcomes (detailed)
-
-### Report an outcome
-
-```python
-client.outcomes.report(
-    request_id=result["request_id"],
-    status="FAILURE",
-    description="Payment processor rejected the refund",
-    revenue_impact=-450.0,
-    correction_needed=True,
-    correction_description="Manual refund required",
-    correction_cost=25.0,
-    time_to_detect_s=3600,
-    time_to_resolve_s=7200,
-    rollback_performed=True,
-    tags=["payment", "refund"],
-)
-```
-
-### Report outcomes in batch
-
-```python
-client.outcomes.report_batch([
-    {"request_id": "act_001", "status": "SUCCESS", "description": "OK"},
-    {"request_id": "act_002", "status": "FAILURE", "description": "Timeout"},
-])
-```
-
-### Retrieve outcomes
-
-```python
-outcome = client.outcomes.get("act_abc123")
-
-outcome_v = client.outcomes.get_by_validation("val_xyz789")
-
-outcome_c = client.outcomes.get_by_case("case_456")
-```
-
-### Outcome timeline
-
-```python
-timeline = client.outcomes.timeline("act_abc123")
-```
-
-### Pending outcomes
-
-```python
-pending = client.outcomes.pending(min_age_hours=24, limit=100)
-```
-
-### Outcome analytics
-
-```python
-analytics = client.outcomes.analytics(domain="customer_transactions")
-
-taxonomy = client.outcomes.taxonomy()
-```
-
-### Recommendation quality
-
-Track whether BIGHUB's recommendations lead to better outcomes:
-
-```python
-quality = client.outcomes.recommendation_quality(domain="customer_transactions")
-
-print(quality["follow_rate"])
-print(quality["positive_after_following"])
-print(quality["quadrants"])   # followed_positive, followed_negative, ignored_positive, ignored_negative
-print(quality["trend"])       # weekly time series
-```
-
-### Partner view
-
-Self-contained domain view with KPIs, trend, evidence pockets, and examples:
-
-```python
-view = client.outcomes.partner_view("customer_transactions")
-# overview, recommendation_quality, trend, by_action, sparse_evidence, examples
-```
-
----
-
-## Decision Cases
-
-A DecisionCase connects the proposed action, context, recommendation, and real outcome:
-
-```python
-case = client.cases.create(
-    domain="customer_transactions",
-    action={"tool": "refund_full", "action": "refund_full", "value": 900.0},
-    verdict={"verdict": "ALLOWED", "risk_score": 0.35, "confidence": 0.86},
-    context={"axes": {"reversibility": 0.9}, "risk_score": 0.35},
-    goal_summary="Customer requested refund for delayed order",
-    trigger_source="support_ticket",
-)
-
-client.cases.report_outcome(
-    case["case_id"],
-    status="FRAUD",
-    description="Fraudulent refund detected 3 days later",
-    correction_needed=True,
-    revenue_impact=-900.0,
-)
-```
-
-The `verdict` field is the internal execution verdict. The primary external surface is the structured recommendation returned by `client.actions.submit(...)`.
-
-### Query and filter cases
-
-```python
-cases = client.cases.list(
-    domain="customer_transactions",
-    has_outcome=True,
-    min_risk_score=0.3,
-    limit=20,
-)
-
-case = client.cases.get("case_abc123")
-```
-
-### Case-level precedents and calibration
-
-```python
-precedents = client.cases.precedents(
-    action="refund_full",
-    domain="customer_transactions",
-    axes={"reversibility": 0.9},
-    min_similarity=0.5,
-)
-
-cal = client.cases.calibration(domain="customer_transactions")
-```
-
----
-
 ## Multi-signal retrieval
 
 Aggregate precedent retrieval across multiple strategies:
@@ -396,59 +504,6 @@ comparison = client.retrieval.compare(
 strategies = client.retrieval.strategies()
 
 stats = client.retrieval.stats()
-```
-
----
-
-## Precedents
-
-```python
-precedents = client.precedents.query(
-    domain="customer_transactions",
-    action="refund_full",
-    risk_score=0.35,
-    require_outcome=True,
-)
-
-signals = client.precedents.signals(
-    domain="customer_transactions",
-    action="refund_full",
-)
-
-stats = client.precedents.stats()
-```
-
----
-
-## Calibration
-
-Compare prediction vs reality:
-
-```python
-report = client.calibration.report(domain="customer_transactions")
-print(report["calibration_quality"])
-print(report["bias_direction"])
-
-reliability = client.calibration.reliability(domain="customer_transactions")
-
-drift = client.calibration.drift(window_days=14, domain="customer_transactions")
-
-breakdown = client.calibration.breakdown(by="domain")
-
-feedback = client.calibration.feedback(domain="customer_transactions")
-
-history = client.calibration.quality_history(days=30, domain="customer_transactions")
-```
-
-### Observe a calibration data point
-
-```python
-client.calibration.observe(
-    case_id="case_abc123",
-    predicted_risk=0.35,
-    outcome_status="FRAUD",
-    domain="customer_transactions",
-)
 ```
 
 ---
@@ -629,6 +684,10 @@ valid = client.webhooks.verify_signature(
 
 event_types = client.webhooks.list_events()
 ```
+
+---
+
+# Reference
 
 ---
 

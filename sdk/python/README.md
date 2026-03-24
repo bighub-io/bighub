@@ -1,14 +1,14 @@
 # BIGHUB Python SDK
 
-> Evaluate agent actions, report real outcomes, and improve future decisions from experience.
+> Evaluate agent actions, receive structured recommendations, report real outcomes, and improve future decisions from experience.
 
-The BIGHUB Python SDK helps you turn agent actions into reusable decision cases.
+The BIGHUB Python SDK connects your agents to a decision layer that learns over time.
 
 Use it to:
 
-- evaluate actions before they run
+- evaluate actions before they run and receive structured recommendations
 - report what actually happened after execution
-- retrieve similar past cases
+- retrieve similar past cases and learned signals
 - compare prediction vs reality
 - improve how future actions are judged
 
@@ -27,7 +27,7 @@ from bighub import BighubClient
 
 client = BighubClient(api_key="your_api_key")
 
-# 1. Evaluate an action before execution
+# 1. Submit a decision for evaluation
 result = client.actions.submit(
     action="refund_full",
     value=450.0,
@@ -36,27 +36,46 @@ result = client.actions.submit(
     actor="refund_agent",
 )
 
-if result["allowed"]:
-    execute_refund()  # your logic
+# 2. Inspect the recommendation
+print(result["recommendation"])             # proceed, proceed_with_caution, review_recommended, do_not_proceed
+print(result["recommendation_confidence"])   # high, medium, low
+print(result["risk_score"])                  # 0.0 – 1.0
 
-    # 2. Report what actually happened
+# 3. Let your agent or runtime act
+if result["recommendation"] in ("proceed", "proceed_with_caution"):
+    execute_refund()
+
+    # 4. Report the real outcome
     client.outcomes.report(
         request_id=result["request_id"],
         status="SUCCESS",
         description="Refund processed, customer retained",
     )
+elif result["recommendation"] == "review_recommended":
+    request_human_review()
 else:
-    print(result["reason"])
+    skip_refund()
 
 client.close()
 ```
 
 That is the core loop:
 
-**evaluate -> execute -> report outcome -> learn**
+**submit for evaluation → inspect recommendation → act → report outcome → learn**
 
-Use `client.actions.submit(...)` as the default entry point in Free BETA.
-In product wording, treat this as: **submit for evaluation**.
+---
+
+## Structured recommendation
+
+BIGHUB primarily returns:
+
+- `recommendation` — what to do (`proceed`, `proceed_with_caution`, `review_recommended`, `do_not_proceed`)
+- `recommendation_confidence` — how confident (`high`, `medium`, `low`)
+- `risk_score` — aggregated risk (0–1)
+- `enforcement_mode` — how the recommendation is applied (`advisory`, `review`, `enforced`)
+- `decision_intelligence` — rationale, evidence status, trajectory health, alternatives
+
+Legacy fields such as `allowed`, `result`, and `reason` may still appear for backward compatibility, but they are not the primary product surface.
 
 ---
 
@@ -76,13 +95,14 @@ Instead of treating each action like the first time, BIGHUB lets future actions 
 - real outcomes
 - similar past cases
 - calibration between prediction and reality
+- trajectory-aware evaluation across multi-step workflows
 - learned advisories and risk patterns
 
 ---
 
 ## Core Loop
 
-### 1) Evaluate an action
+### 1) Submit a decision for evaluation
 
 ```python
 result = client.actions.submit(
@@ -92,16 +112,21 @@ result = client.actions.submit(
     target="sku_789",
 )
 
-print(result["risk_score"])   # 0.42
-print(result["warnings"])     # ["Similar actions caused margin drops"]
-print(result["allowed"])      # True
+print(result["recommendation"])             # proceed_with_caution
+print(result["recommendation_confidence"])   # medium
+print(result["risk_score"])                  # 0.42
+print(result["warnings"])                    # ["Similar actions caused margin drops"]
 ```
 
-### 2) Execute if allowed
+### 2) Inspect the recommendation and decision signals
 
 ```python
-if result["allowed"]:
+if result["recommendation"] in ("proceed", "proceed_with_caution"):
     apply_price_change()
+elif result["recommendation"] == "review_recommended":
+    request_human_review()
+else:
+    skip_action()
 ```
 
 ### 3) Report the real outcome
@@ -115,7 +140,7 @@ client.outcomes.report(
 )
 ```
 
-### 4) Reuse what was learned
+### 4) Reuse what was learned on future decisions
 
 ```python
 precedents = client.precedents.query(
@@ -136,7 +161,7 @@ print(precedents["outcomes"])
 
 | Resource | Purpose |
 |---|---|
-| `client.actions` | Evaluate actions before they run |
+| `client.actions` | Submit actions for evaluation and receive recommendations |
 | `client.outcomes` | Report and query real outcomes |
 | `client.cases` | Create and manage DecisionCases |
 
@@ -157,13 +182,23 @@ print(precedents["outcomes"])
 | `client.constraints` | Configure explicit operating limits and intervention boundaries |
 | `client.rules` | Backward-compatible alias for `client.constraints` |
 
+---
+
+## Trajectory-aware evaluation
+
+BIGHUB evaluates actions not only in isolation, but also in the context of what happened before. As outcomes accumulate, similar sequences and prior decisions improve future recommendations.
+
+For costly and multi-step workflows, trajectory-aware signals mean the same action may be judged differently depending on what happened earlier in the sequence.
+
+---
+
 ## Decision Cases
 
-A DecisionCase is the unit BIGHUB uses to connect:
+A DecisionCase connects:
 
 - the proposed action
 - the context around it
-- the decision made before execution
+- the recommendation made before execution
 - the real outcome observed later
 
 Create and manage a decision case directly:
@@ -186,6 +221,8 @@ client.cases.report_outcome(
     revenue_impact=-900.0,
 )
 ```
+
+The `verdict` field is the internal execution verdict. The primary external surface is the structured recommendation returned by `client.actions.submit(...)`.
 
 Query cases with outcomes:
 
@@ -238,6 +275,28 @@ print(advice["advisories"])
 ```
 
 These signals help future actions get judged with more experience.
+
+---
+
+## Recommendation quality analytics
+
+Track whether BIGHUB's recommendations lead to better outcomes:
+
+```python
+quality = client.outcomes.recommendation_quality(domain="customer_transactions")
+
+print(quality["follow_rate"])                 # how often agents follow the recommendation
+print(quality["positive_after_following"])     # success rate when followed
+print(quality["quadrants"])                   # followed_positive, followed_negative, ignored_positive, ignored_negative
+print(quality["trend"])                       # weekly time series
+```
+
+Get a self-contained partner view for one domain:
+
+```python
+view = client.outcomes.partner_view("customer_transactions")
+# overview, recommendation_quality, trend, by_action, sparse_evidence, examples
+```
 
 ---
 
@@ -331,7 +390,7 @@ async with AsyncBighubClient(api_key="your_api_key") as client:
         domain="customer_transactions",
     )
 
-    if result["allowed"]:
+    if result["recommendation"] in ("proceed", "proceed_with_caution"):
         await execute_refund()
         await client.outcomes.report(
             request_id=result["request_id"],
@@ -398,7 +457,7 @@ The current goal is to make the full decision loop easy to test with real agent 
 
 ## One-Liner
 
-BIGHUB helps agent actions get judged with more experience over time.
+BIGHUB helps agent actions get better recommendations over time by learning from real outcomes.
 
 ---
 

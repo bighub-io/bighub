@@ -2,7 +2,7 @@
 
 > MCP server for decision learning on agent actions.
 
-Use BIGHUB from any [Model Context Protocol](https://modelcontextprotocol.io) client to evaluate agent actions, report real outcomes, retrieve similar past cases, and improve future decisions over time.
+Use BIGHUB from any [Model Context Protocol](https://modelcontextprotocol.io) client to evaluate agent actions, receive structured recommendations, report real outcomes, and improve future decisions over time.
 
 ```text
 MCP client
@@ -11,7 +11,7 @@ MCP client
    ↓
 BIGHUB API
    ↓
-evaluate -> execute -> report outcome -> learn
+evaluate → recommend → agent acts → report outcome → learn
 ```
 
 ---
@@ -66,11 +66,13 @@ Most teams start with the first three tools (the core loop):
 
 | Tool | Purpose |
 |---|---|
-| `bighub_actions_submit` | Submit an action for evaluation before execution |
-| `bighub_outcomes_report` | Report what actually happened |
-| `bighub_precedents_query` | Retrieve similar past cases |
+| `bighub_actions_submit` | Submit an action for evaluation — returns recommendation, confidence, risk score |
+| `bighub_outcomes_report` | Report what actually happened after execution |
+| `bighub_precedents_query` | Retrieve similar past cases to inform the next decision |
 | `bighub_calibration_report` | Compare prediction vs reality |
 | `bighub_insights_advise` | Retrieve learned guidance for the next action |
+| `bighub_outcomes_recommendation_quality` | Recommendation quality analytics: follow rate, quadrants, trend |
+| `bighub_outcomes_partner_view` | Self-contained per-domain view: KPIs, examples, evidence pockets |
 
 `bighub_actions_evaluate_payload` is available as an advanced action evaluation endpoint.
 
@@ -78,23 +80,43 @@ Most teams start with the first three tools (the core loop):
 
 ## Typical MCP Loop
 
-1. Evaluate the action
-2. Execute it in your runtime
-3. Report the real outcome
-4. Retrieve similar past cases
-5. Compare prediction vs reality
-6. Use learned guidance on the next action
+1. Submit a decision for evaluation
+2. Receive a recommendation and decision signals
+3. Let the agent or runtime act
+4. Report the real outcome
+5. Inspect similar past cases and calibration
+6. Use what was learned on the next decision
 
 Typical tool flow:
 
 ```text
 bighub_actions_submit
--> agent runtime executes action
--> bighub_outcomes_report
--> bighub_precedents_query
--> bighub_calibration_report
--> bighub_insights_advise
+→ agent runtime acts based on recommendation
+→ bighub_outcomes_report
+→ bighub_precedents_query
+→ bighub_calibration_report
+→ bighub_insights_advise
 ```
+
+---
+
+## Structured recommendation
+
+BIGHUB primarily returns:
+
+- `recommendation` — what to do (`proceed`, `proceed_with_caution`, `review_recommended`, `do_not_proceed`)
+- `recommendation_confidence` — how confident (`high`, `medium`, `low`)
+- `risk_score` — aggregated risk (0–1)
+- `enforcement_mode` — how the recommendation is applied (`advisory`, `review`, `enforced`)
+- `decision_intelligence` — rationale, evidence status, trajectory health, alternatives
+
+Legacy fields such as `allowed`, `result`, and `reason` may still appear for backward compatibility, but they are not the primary product surface.
+
+---
+
+## Trajectory-aware evaluation
+
+BIGHUB evaluates actions not only in isolation, but also in the context of what happened before. As outcomes accumulate, similar sequences and prior decisions improve future recommendations.
 
 ---
 

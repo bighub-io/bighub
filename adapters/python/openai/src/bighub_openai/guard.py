@@ -63,6 +63,10 @@ class ToolResult:
     risk_score: Optional[float] = None
     enforcement_mode: Optional[str] = None
     trajectory_health: Optional[str] = None
+    risk_band: Optional[str] = None
+    confidence_zone: Optional[str] = None
+    regret_band: Optional[str] = None
+    decision_packet: Optional[Dict[str, Any]] = None
 
 
 GuardedToolResult = ToolResult
@@ -87,6 +91,7 @@ class ToolExecutionEvent:
     risk_score: Optional[float] = None
     enforcement_mode: Optional[str] = None
     trajectory_health: Optional[str] = None
+    decision_packet: Optional[Dict[str, Any]] = None
 
 
 class BighubOpenAI:
@@ -759,6 +764,14 @@ class BighubOpenAI:
         advisory = decision.get("decision_intelligence") or {}
         fallback = decision.get("intelligence") or {}
         result.trajectory_health = advisory.get("trajectory_health") or fallback.get("trajectory_health")
+
+        dp = decision.get("decision_packet")
+        if dp and isinstance(dp, dict):
+            result.decision_packet = dp
+            signal = dp.get("signal") or {}
+            result.risk_band = signal.get("risk_band")
+            result.confidence_zone = signal.get("confidence_zone")
+            result.regret_band = signal.get("regret_band")
         return result
 
     def _handle_function_call(self, call: Dict[str, Any]) -> tuple[Dict[str, Any], ToolExecutionEvent]:
@@ -841,6 +854,7 @@ class BighubOpenAI:
             risk_score=result.risk_score,
             enforcement_mode=result.enforcement_mode,
             trajectory_health=result.trajectory_health,
+            decision_packet=result.decision_packet,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
@@ -1714,6 +1728,7 @@ class AsyncBighubOpenAI(BighubOpenAI):
             risk_score=result.risk_score,
             enforcement_mode=result.enforcement_mode,
             trajectory_health=result.trajectory_health,
+            decision_packet=result.decision_packet,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 

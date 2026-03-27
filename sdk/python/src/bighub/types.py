@@ -201,6 +201,9 @@ class ActionEvaluateResponse(TypedDict, total=False):
     learning_influenced: bool
     verdict_override: JSONDict
 
+    # ── Decision Packet v1 ───────────────────────────────────────────
+    decision_packet: JSONDict
+
 
 ActionSubmitResponse = ActionEvaluateResponse
 

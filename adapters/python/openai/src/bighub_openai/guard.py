@@ -103,18 +103,22 @@ class BighubOpenAI:
     def __init__(
         self,
         *,
-        bighub_api_key: str,
-        actor: str,
-        domain: str,
+        bighub_api_key: Optional[str] = None,
+        actor: str = "AI_AGENT",
+        domain: str = "it_actions",
         decision_mode: str = "submit",
+        decision_objective: str = "better_decision",
+        model_selection: str = "auto",
         on_decision: Optional[Callable[[Dict[str, Any]], None]] = None,
         memory_enabled: bool = True,
         memory_source: str = "openai_adapter",
         memory_source_version: str = f"bighub-openai@{__version__}",
         memory_ingest_timeout_ms: int = 300,
         outcome_reporting: bool = True,
+        outcome_reporting_required: bool = False,
         openai_api_key: Optional[str] = None,
         openai_client: Optional[Any] = None,
+        bighub: Optional[BighubClient] = None,
         bighub_client: Optional[BighubClient] = None,
         fail_mode: str = "closed",
         max_tool_rounds: int = 8,
@@ -132,12 +136,15 @@ class BighubOpenAI:
             actor=actor,
             domain=domain,
             decision_mode=decision_mode,
+            decision_objective=decision_objective,
+            model_selection=model_selection,
             on_decision=on_decision,
             memory_enabled=memory_enabled,
             memory_source=memory_source,
             memory_source_version=memory_source_version,
             memory_ingest_timeout_ms=memory_ingest_timeout_ms,
             outcome_reporting=outcome_reporting,
+            outcome_reporting_required=outcome_reporting_required,
             fail_mode=fail_mode,
             max_tool_rounds=max_tool_rounds,
             session_id=session_id,
@@ -151,7 +158,11 @@ class BighubOpenAI:
             evaluate_retries=evaluate_retries,
         )
 
-        self._bighub = bighub_client or BighubClient(api_key=bighub_api_key)
+        if bighub_client is not None and bighub is not None:
+            raise AdapterConfigurationError("Pass only one of bighub_client or bighub")
+        if bighub_client is None and bighub is None and not bighub_api_key:
+            raise AdapterConfigurationError("bighub_api_key or bighub is required")
+        self._bighub = bighub_client or bighub or BighubClient(api_key=bighub_api_key)
         self._openai = openai_client or self._build_openai_client(openai_api_key)
 
     def _init_shared_config(
@@ -160,12 +171,15 @@ class BighubOpenAI:
         actor: str,
         domain: str,
         decision_mode: str,
+        decision_objective: str,
+        model_selection: str,
         on_decision: Optional[Callable[[Dict[str, Any]], Any]],
         memory_enabled: bool,
         memory_source: str,
         memory_source_version: str,
         memory_ingest_timeout_ms: int,
         outcome_reporting: bool,
+        outcome_reporting_required: bool,
         fail_mode: str,
         max_tool_rounds: int,
         session_id: Optional[str] = None,
@@ -188,12 +202,15 @@ class BighubOpenAI:
         self.actor = actor
         self.domain = domain
         self.decision_mode = decision_mode
+        self.decision_objective = decision_objective
+        self.model_selection = model_selection
         self.on_decision = on_decision
         self.memory_enabled = memory_enabled
         self.memory_source = memory_source
         self.memory_source_version = memory_source_version
         self.memory_ingest_timeout_ms = max(100, int(memory_ingest_timeout_ms))
         self.outcome_reporting = outcome_reporting
+        self.outcome_reporting_required = bool(outcome_reporting_required)
         self.fail_mode = fail_mode
         self.max_tool_rounds = max_tool_rounds
         self.session_id = session_id or str(uuid4())
@@ -262,6 +279,42 @@ class BighubOpenAI:
         Alias for register_tool to keep integration terse.
         """
         self.register_tool(name=name, fn=fn, **kwargs)
+
+    def action(
+        self,
+        *,
+        system: Optional[str] = None,
+        risk: str = "",
+        environment: str = "",
+        name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Decorator for registering an IT action in decision-first language."""
+
+        def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
+            metadata_from_args = kwargs.pop("metadata_from_args", None)
+
+            def metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+                base = metadata_from_args(args) if metadata_from_args else {}
+                out = dict(base or {})
+                if system:
+                    out["system"] = system
+                if risk:
+                    out["risk"] = risk
+                if environment:
+                    out["environment"] = environment
+                return out
+
+            self.register_tool(
+                name=name or fn.__name__,
+                fn=fn,
+                domain=kwargs.pop("domain", system or self.domain),
+                metadata_from_args=metadata,
+                **kwargs,
+            )
+            return fn
+
+        return decorate
 
     def list_tools(self) -> List[Dict[str, Any]]:
         """Return the list of registered tools with their OpenAI-compatible schemas."""
@@ -837,10 +890,6 @@ class BighubOpenAI:
         else:
             result = ToolResult(status="blocked", decision=decision)
             self._enrich_result(result, decision)
-            self._report_outcome(
-                decision=decision, tool_name=name, status="BLOCKED",
-                description=f"Tool {name} blocked: {decision.get('recommendation', decision.get('result', 'denied'))}",
-            )
 
         event = ToolExecutionEvent(
             tool=name,
@@ -879,6 +928,8 @@ class BighubOpenAI:
                 )
                 metadata = tool.metadata_from_args(args) if tool.metadata_from_args else None
                 context = dict(metadata) if metadata else {}
+                context.setdefault("objective", self.decision_objective)
+                context.setdefault("model_selection", self.model_selection)
                 if self.session_id:
                     context["session_id"] = self.session_id
                 if self._trajectory_id:
@@ -895,6 +946,16 @@ class BighubOpenAI:
                     if context:
                         payload["context"] = context
                     result = self._bighub.actions.submit_payload(payload=payload)
+                elif hasattr(self._bighub, "decisions") and hasattr(self._bighub.decisions, "evaluate"):
+                    result = self._bighub.decisions.evaluate(
+                        action=action,
+                        value=value,
+                        target=target,
+                        domain=domain,
+                        actor=actor,
+                        context=context or None,
+                        raw=True,
+                    )
                 else:
                     result = self._bighub.actions.submit(
                         action=action,
@@ -956,11 +1017,24 @@ class BighubOpenAI:
         if not request_id:
             return
         try:
+            snapshot = self._extract_decision_snapshot(decision)
+            recommendation = str(decision.get("recommendation") or "").strip()
+            recommendation_followed = self._compute_recommendation_followed(
+                recommendation=recommendation,
+                executed_status=status,
+            )
             kwargs: Dict[str, Any] = {
                 "request_id": request_id,
                 "status": status,
                 "description": description,
+                "production_action": tool_name,
+                "human_final_action": tool_name,
+                "recommendation_followed": recommendation_followed,
+                "outcome_label_quality": "runtime",
+                "reported_by": self.actor,
             }
+            if snapshot:
+                kwargs["decision_snapshot"] = snapshot
             details: Dict[str, Any] = {"tool": tool_name}
             if decision.get("recommendation"):
                 details["recommendation"] = decision["recommendation"]
@@ -978,7 +1052,28 @@ class BighubOpenAI:
                 )
                 future.result(timeout=self.memory_ingest_timeout_ms / 1000.0)
         except Exception as exc:
+            if self.outcome_reporting_required:
+                raise RuntimeError(f"BIGHUB outcome report failed: {exc}") from exc
             logger.debug("BIGHUB outcome report failed (best-effort): %s", exc)
+
+    @staticmethod
+    def _compute_recommendation_followed(*, recommendation: str, executed_status: str) -> Optional[bool]:
+        if executed_status not in {"SUCCESS", "FAILURE", "ESCALATION", "CORRECTION"}:
+            return None
+        if recommendation in {"proceed", "proceed_with_caution"}:
+            return True
+        if recommendation in {"review_recommended", "do_not_proceed"}:
+            return False
+        return None
+
+    @staticmethod
+    def _extract_decision_snapshot(decision: Dict[str, Any]) -> Dict[str, Any]:
+        if isinstance(decision.get("learning_snapshot"), dict):
+            return decision["learning_snapshot"]
+        packet = decision.get("decision_packet")
+        if isinstance(packet, dict) and isinstance(packet.get("metadata"), dict):
+            return packet["metadata"]
+        return {}
 
     @staticmethod
     def _infer_value(args: Dict[str, Any]) -> float:
@@ -1197,18 +1292,22 @@ class AsyncBighubOpenAI(BighubOpenAI):
     def __init__(
         self,
         *,
-        bighub_api_key: str,
-        actor: str,
-        domain: str,
+        bighub_api_key: Optional[str] = None,
+        actor: str = "AI_AGENT",
+        domain: str = "it_actions",
         decision_mode: str = "submit",
+        decision_objective: str = "better_decision",
+        model_selection: str = "auto",
         on_decision: Optional[Callable[[Dict[str, Any]], Any]] = None,
         memory_enabled: bool = True,
         memory_source: str = "openai_adapter",
         memory_source_version: str = f"bighub-openai@{__version__}",
         memory_ingest_timeout_ms: int = 300,
         outcome_reporting: bool = True,
+        outcome_reporting_required: bool = False,
         openai_api_key: Optional[str] = None,
         openai_client: Optional[Any] = None,
+        bighub: Optional[AsyncBighubClient] = None,
         bighub_client: Optional[AsyncBighubClient] = None,
         fail_mode: str = "closed",
         max_tool_rounds: int = 8,
@@ -1226,12 +1325,15 @@ class AsyncBighubOpenAI(BighubOpenAI):
             actor=actor,
             domain=domain,
             decision_mode=decision_mode,
+            decision_objective=decision_objective,
+            model_selection=model_selection,
             on_decision=on_decision,
             memory_enabled=memory_enabled,
             memory_source=memory_source,
             memory_source_version=memory_source_version,
             memory_ingest_timeout_ms=memory_ingest_timeout_ms,
             outcome_reporting=outcome_reporting,
+            outcome_reporting_required=outcome_reporting_required,
             fail_mode=fail_mode,
             max_tool_rounds=max_tool_rounds,
             session_id=session_id,
@@ -1245,7 +1347,11 @@ class AsyncBighubOpenAI(BighubOpenAI):
             evaluate_retries=evaluate_retries,
         )
 
-        self._bighub = bighub_client or AsyncBighubClient(api_key=bighub_api_key)
+        if bighub_client is not None and bighub is not None:
+            raise AdapterConfigurationError("Pass only one of bighub_client or bighub")
+        if bighub_client is None and bighub is None and not bighub_api_key:
+            raise AdapterConfigurationError("bighub_api_key or bighub is required")
+        self._bighub = bighub_client or bighub or AsyncBighubClient(api_key=bighub_api_key)
         self._openai = openai_client or self._build_openai_client(openai_api_key)
 
     @staticmethod
@@ -1711,10 +1817,6 @@ class AsyncBighubOpenAI(BighubOpenAI):
         else:
             result = ToolResult(status="blocked", decision=decision)
             self._enrich_result(result, decision)
-            await self._report_outcome(
-                decision=decision, tool_name=name, status="BLOCKED",
-                description=f"Tool {name} blocked: {decision.get('recommendation', decision.get('result', 'denied'))}",
-            )
 
         event = ToolExecutionEvent(
             tool=name,
@@ -1753,6 +1855,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
                 )
                 metadata = tool.metadata_from_args(args) if tool.metadata_from_args else None
                 context = dict(metadata) if metadata else {}
+                context.setdefault("objective", self.decision_objective)
+                context.setdefault("model_selection", self.model_selection)
                 if self.session_id:
                     context["session_id"] = self.session_id
                 if self._trajectory_id:
@@ -1769,6 +1873,16 @@ class AsyncBighubOpenAI(BighubOpenAI):
                     if context:
                         payload["context"] = context
                     result = await self._bighub.actions.submit_payload(payload=payload)
+                elif hasattr(self._bighub, "decisions") and hasattr(self._bighub.decisions, "evaluate"):
+                    result = await self._bighub.decisions.evaluate(
+                        action=action,
+                        value=value,
+                        target=target,
+                        domain=domain,
+                        actor=actor,
+                        context=context or None,
+                        raw=True,
+                    )
                 else:
                     result = await self._bighub.actions.submit(
                         action=action,
@@ -1830,11 +1944,24 @@ class AsyncBighubOpenAI(BighubOpenAI):
         if not request_id:
             return
         try:
+            snapshot = self._extract_decision_snapshot(decision)
+            recommendation = str(decision.get("recommendation") or "").strip()
+            recommendation_followed = self._compute_recommendation_followed(
+                recommendation=recommendation,
+                executed_status=status,
+            )
             kwargs: Dict[str, Any] = {
                 "request_id": request_id,
                 "status": status,
                 "description": description,
+                "production_action": tool_name,
+                "human_final_action": tool_name,
+                "recommendation_followed": recommendation_followed,
+                "outcome_label_quality": "runtime",
+                "reported_by": self.actor,
             }
+            if snapshot:
+                kwargs["decision_snapshot"] = snapshot
             details: Dict[str, Any] = {"tool": tool_name}
             if decision.get("recommendation"):
                 details["recommendation"] = decision["recommendation"]
@@ -1850,6 +1977,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
                 timeout=self.memory_ingest_timeout_ms / 1000.0,
             )
         except Exception as exc:
+            if self.outcome_reporting_required:
+                raise RuntimeError(f"BIGHUB async outcome report failed: {exc}") from exc
             logger.debug("BIGHUB async outcome report failed (best-effort): %s", exc)
 
 

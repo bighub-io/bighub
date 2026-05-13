@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+from .brain import AsyncBrainAPI
+from .decisions import AsyncDecisionsAPI
+from .packets import AsyncPacketsAPI
 from .resources.actions import AsyncActionsAPI
 from .resources.approvals import AsyncApprovalsAPI
 from .resources.api_keys import AsyncAPIKeysAPI
@@ -21,7 +24,10 @@ from .resources.retrieval import AsyncRetrievalAPI
 from .resources.rules import AsyncConstraintsAPI
 from .resources.simulations import AsyncSimulationsAPI
 from .resources.webhooks import AsyncWebhooksAPI
+from .reviews import AsyncReviewsAPI
+from .systems import AsyncSystemsAPI
 from .transport import AsyncTransport, RetryConfig
+from .types import JSONDict
 from .version import __version__
 
 
@@ -56,6 +62,13 @@ class AsyncBighubClient:
         self.outcomes = AsyncOutcomesAPI(self._transport)
         self.ingest = AsyncIngestAPI(self._transport)
 
+        # Better Decision SDK surface
+        self.reviews = AsyncReviewsAPI(self._transport)
+        self.decisions = AsyncDecisionsAPI(self._transport, reviews=self.reviews, outcomes=self.outcomes)
+        self.packets = AsyncPacketsAPI()
+        self.brain = AsyncBrainAPI(self._transport)
+        self.systems = AsyncSystemsAPI(self._transport)
+
         # Decision learning
         self.precedents = AsyncPrecedentsAPI(self._transport)
         self.calibration = AsyncCalibrationAPI(self._transport)
@@ -85,3 +98,39 @@ class AsyncBighubClient:
 
     async def __aexit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
         await self.close()
+
+    async def decide(
+        self,
+        *,
+        action: str,
+        context: Optional[JSONDict] = None,
+        objective: str = "better_decision",
+        model_selection: str = "auto",
+        value: Optional[float] = None,
+        target: Optional[str] = None,
+        actor: str = "AI_AGENT",
+        domain: Optional[str] = None,
+        dry_run: bool = False,
+        idempotency_key: Optional[str] = None,
+        raw: bool = False,
+    ):
+        """Turn a proposed IT agent action into a better decision before it runs."""
+        return await self.decisions.evaluate(
+            action=action,
+            context=context,
+            objective=objective,
+            model_selection=model_selection,
+            value=value,
+            target=target,
+            actor=actor,
+            domain=domain,
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            raw=raw,
+        )
+
+    async def build_packet(self, **kwargs):  # type: ignore[no-untyped-def]
+        return await self.packets.build(**kwargs)
+
+    async def run_brain(self, **kwargs):  # type: ignore[no-untyped-def]
+        return await self.brain.run(**kwargs)

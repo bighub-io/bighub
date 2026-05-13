@@ -1,4 +1,7 @@
 from .async_client import AsyncBighubClient
+from .brain import DecisionBrainResult
+from .client import Bighub
+from .decisions import AsyncDecision, BackendDecisionNormalizer, Decision, ModelSelection
 from .exceptions import (
     BighubAPIError,
     BighubAuthError,
@@ -8,6 +11,7 @@ from .exceptions import (
     BighubTimeoutError,
     BighubValidationError,
 )
+from .packets import DecisionPacket
 from .models import (
     APIKeyCreateModel,
     ActionSubmitPayloadModel,
@@ -103,8 +107,15 @@ verify_webhook_signature = verify_chronos_signature
 __all__ = [
     "__version__",
     # Clients
+    "Bighub",
     "BighubClient",
     "AsyncBighubClient",
+    "Decision",
+    "AsyncDecision",
+    "DecisionPacket",
+    "DecisionBrainResult",
+    "ModelSelection",
+    "BackendDecisionNormalizer",
     "LiveActionsSession",
     "AsyncLiveActionsSession",
     # Errors

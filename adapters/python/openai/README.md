@@ -1,14 +1,14 @@
 # bighub-openai
 
-**`bighub-openai` adds BIGHUB's decision layer to OpenAI tool calls, returning structured recommendations before execution and learning from real outcomes automatically.**
+**`bighub-openai` adds BIGHUB's Better Decision layer to OpenAI tool calls, turning proposed IT actions into better actions before execution.**
 
-> OpenAI adapter for decision learning on tool calls.
+> OpenAI adapter for better decisions on tool calls.
 
 ```text
-OpenAI Responses API  →  bighub-openai          →  BIGHUB
-tool call             →  evaluate                →  recommendation + confidence + rationale
-agent / runtime acts  →  execution or escalation
-real outcome          →  report (automatic)      →  future recommendations improve
+OpenAI Responses API  ->  bighub-openai          ->  BIGHUB
+tool call             ->  proposed IT action     ->  Decision Packet + DecisionBrain
+runtime               ->  better_action          ->  execution mode or review
+outcome later         ->  optional report        ->  future decisions improve
 ```
 
 ---
@@ -56,37 +56,37 @@ Dependencies:
 
 ```python
 import os
+from bighub import Bighub
 from bighub_openai import BighubOpenAI
 
-def refund_payment(order_id: str, amount: float) -> dict:
-    return {"ok": True, "order_id": order_id, "amount": amount}
+bighub = Bighub(api_key=os.getenv("BIGHUB_API_KEY"))
 
-runtime = BighubOpenAI(
+agent = BighubOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"),
-    bighub_api_key=os.getenv("BIGHUB_API_KEY"),
-    actor="AI_AGENT_001",
-    domain="customer_transactions",
+    bighub=bighub,
+    actor="ops-agent",
+    domain="it_actions",
+    decision_objective="better_decision",
+    model_selection="auto",
 )
 
-runtime.tool(
-    "refund_payment",
-    refund_payment,
-    value_from_args=lambda a: a["amount"],
-)
+@agent.action(system="okta", risk="high", environment="production")
+def grant_access(user_id: str, group: str, duration: str) -> dict:
+    return {"ok": True, "user_id": user_id, "group": group, "duration": duration}
 
-response = runtime.run(
-    messages=[{"role": "user", "content": "Refund order ord_123 for 199.99"}],
+response = agent.run(
+    messages=[{"role": "user", "content": "Grant Alice temporary Okta admin access for 48h"}],
     model="gpt-4.1",
 )
 
 last = response["execution"]["last"]
-print(last["decision"]["recommendation"])             # proceed, proceed_with_caution, review_recommended, do_not_proceed
-print(last["decision"]["recommendation_confidence"])   # high, medium, low
-print(last["decision"]["risk_score"])                  # 0.0 – 1.0
-print(last["status"])                                  # executed, blocked, approval_required
+print(last["decision"].get("selected_model"))
+print(last["decision"].get("recommendation"))
+print(last["decision"].get("risk_score"))
+print(last["status"])  # executed, blocked, approval_required
 ```
 
-`runtime.tool(...)` auto-generates a strict JSON schema from the Python function signature. Use `parameters_schema=...` only when you need custom constraints.
+`agent.action(...)` auto-generates a strict JSON schema from the Python function signature and attaches IT system context. `GuardedOpenAI` and `runtime.tool(...)` remain available as backward-compatible aliases.
 
 ---
 

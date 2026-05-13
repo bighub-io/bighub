@@ -1,8 +1,8 @@
 # @bighub/bighub-mcp
 
-**BIGHUB's decision layer as an MCP server. Evaluate agent actions, receive structured recommendations, report outcomes, and improve future decisions — from any MCP-compatible client.**
+**BIGHUB's Better Decision layer as an MCP server. Turn proposed IT agent actions into better decisions before they run from any MCP-compatible client.**
 
-> MCP server for decision learning on agent actions.
+> MCP server for better decisions on IT agent actions.
 
 ```text
 MCP client
@@ -11,7 +11,7 @@ MCP client
    ↓
 BIGHUB API
    ↓
-evaluate → recommend → agent acts → report outcome → learn
+proposed action → Decision Packet → DecisionBrain → better action → review if needed
 ```
 
 ---
@@ -24,12 +24,12 @@ evaluate → recommend → agent acts → report outcome → learn
 - [Quickstart](#quickstart)
 - [When to use bighub-mcp](#when-to-use-bighub-mcp)
 - [Typical MCP Loop](#typical-mcp-loop)
-- [Structured recommendation](#structured-recommendation)
+- [Better Decision primitives](#better-decision-primitives)
 - [Trajectory-aware evaluation](#trajectory-aware-evaluation)
 
 **Tool reference**
 
-- [Core loop](#core-loop) · [Actions](#actions) · [Outcomes](#outcomes) · [Decision cases](#decision-cases) · [Precedents](#precedents) · [Calibration](#calibration) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Learning](#learning) · [Features](#features) · [Runtime ingestion](#runtime-ingestion) · [Operating constraints](#operating-constraints) · [Approvals & kill switch](#approvals--kill-switch) · [Events](#events) · [Webhooks](#webhooks) · [API keys](#api-keys) · [Auth](#auth) · [Utility](#utility)
+- [Better Decision primitives](#better-decision-primitives) · [Core loop](#core-loop) · [Actions](#actions) · [Outcomes](#outcomes) · [Decision cases](#decision-cases) · [Precedents](#precedents) · [Calibration](#calibration) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Learning](#learning) · [Features](#features) · [Runtime ingestion](#runtime-ingestion) · [Operating constraints](#operating-constraints) · [Approvals & kill switch](#approvals--kill-switch) · [Events](#events) · [Webhooks](#webhooks) · [API keys](#api-keys) · [Auth](#auth) · [Utility](#utility)
 
 **Reference**
 
@@ -83,12 +83,15 @@ Works with MCP-compatible clients such as Claude Desktop and Cursor.
 
 ## When to use bighub-mcp
 
-Use this server when your MCP-connected agent performs actions that:
+Use this server when your MCP-connected agent proposes IT actions such as:
 
-- **Have real consequences** — financial, operational, or reputational impact
-- **Are ambiguous or multi-step** — the right call depends on context and trajectory
-- **Produce observable outcomes** — you can report what actually happened
-- **Need to improve over time** — static instructions aren't enough
+- granting Okta access
+- rotating credentials
+- deploying or rolling back services
+- changing CI/CD, cloud, or IAM settings
+- exporting sensitive data
+- posting incident or support updates
+- resolving actions that need human review
 
 If your agent only answers questions or performs read-only lookups, you don't need this. It's designed for agents that make decisions with real-world consequences.
 
@@ -96,37 +99,39 @@ If your agent only answers questions or performs read-only lookups, you don't ne
 
 ## Typical MCP Loop
 
-1. Submit a decision for evaluation
-2. Receive a recommendation and decision signals
-3. Let the agent or runtime act
-4. Report the real outcome
-5. Inspect similar past cases and calibration
-6. Use what was learned on the next decision
+1. Send the proposed IT action to `bighub_decide`
+2. Let BIGHUB build or use a Decision Packet
+3. Run DecisionBrain and select the right model/path
+4. Execute the returned better action only when `execution_mode` allows it
+5. Route to review when BIGHUB asks for human approval or modification
+6. Optionally report the outcome later
 
 ```text
-bighub_actions_evaluate
-→ agent runtime acts based on recommendation
-→ bighub_outcomes_report
-→ bighub_precedents_query
-→ bighub_calibration_report
-→ bighub_insights_advise
+bighub_decide
+→ bighub_build_packet / bighub_run_brain
+→ bighub_resolve_review when needed
+→ bighub_report_outcome later, optional
 ```
 
 ---
 
-## Structured recommendation
+## Better Decision primitives
 
-Every evaluation returns a structured recommendation — not just allow / block:
+The modern MCP surface is centered on the decision flow:
 
 | Field | Description |
 |---|---|
-| `recommendation` | `proceed`, `proceed_with_caution`, `review_recommended`, `do_not_proceed` |
-| `recommendation_confidence` | `high`, `medium`, `low` |
-| `risk_score` | Aggregated risk (0–1) |
-| `enforcement_mode` | `advisory`, `review`, `enforced` |
-| `decision_intelligence` | Rationale, evidence status, trajectory health, alternatives |
+| `bighub_decide` | Turn a proposed IT action into a better decision |
+| `bighub_build_packet` | Build a Decision Packet from action and context |
+| `bighub_run_brain` | Run DecisionBrain on a packet |
+| `bighub_list_reviews` | List pending reviews |
+| `bighub_resolve_review` | Approve, deny, or modify a better action |
+| `bighub_get_system_context` | Fetch context for systems such as Okta or Slack |
+| `bighub_get_world_state` | Read operational world state |
+| `bighub_report_outcome` | Optionally report what happened later |
+| `bighub_http_request` | Low-level fallback for endpoints not yet modeled |
 
-Legacy fields (`allowed`, `result`, `reason`) may still appear for backward compatibility but are not the primary surface.
+Legacy tools such as `bighub_actions_evaluate` remain available for compatibility.
 
 ---
 

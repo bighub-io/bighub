@@ -1,0 +1,100 @@
+{
+  "better_decision_contract_version": "2026-05-13",
+  "request_id": "VAL_1010",
+  "allowed": false,
+  "result": "requires_approval",
+  "reason": "Production privileged access requires review.",
+  "requires_approval": true,
+  "risk_score": 0.68,
+  "mode": "CONDITIONAL",
+  "human_review": true,
+  "recommendation": "review_recommended",
+  "recommendation_confidence": "high",
+  "proposed_action": "Grant temporary Okta admin access to users 1-9 for 48h",
+  "better_action": "Grant admin access only to users 1-3 for 4h, require MFA, and create expiry review.",
+  "execution_mode": "review",
+  "risk": 0.68,
+  "confidence": 0.84,
+  "expected_regret": 0.31,
+  "can_run": false,
+  "needs_review": true,
+  "needs_more_context": false,
+  "should_not_run": false,
+  "selected_model": null,
+  "selected_decision_path": null,
+  "model_selection_reason": null,
+  "verification_plan": ["verify grant", "verify MFA", "verify revocation"],
+  "obligations": [{"type": "revoke_access", "due_in": "4h"}],
+  "learning_hooks": ["capture_review_outcome"],
+  "decision_intelligence": {
+    "rationale": "The requested scope is broader than necessary for a production admin grant.",
+    "projected_regret": 0.31,
+    "rule_basis": "least_privilege",
+    "alternatives": [
+      {
+        "action": "Grant admin access only to users 1-3 for 4h, require MFA, and create expiry review.",
+        "rationale": "Reduced scope and duration"
+      }
+    ]
+  },
+  "decision_packet": {
+    "version": 1,
+    "signal": {
+      "recommendation": "review_recommended",
+      "risk_score": 0.68,
+      "risk_band": "high",
+      "confidence_zone": "limited_evidence",
+      "regret_band": "moderate"
+    },
+    "intent": "better_decision",
+    "action_type": "access_management",
+    "system": "okta",
+    "environment": "production",
+    "context": {
+      "system": "okta",
+      "environment": "production"
+    },
+    "constraints": ["least privilege", "time-bounded access", "MFA required"],
+    "system_state": {},
+    "candidate_actions": [
+      "Grant temporary Okta admin access to users 1-9 for 48h",
+      "Grant admin access only to users 1-3 for 4h, require MFA, and create expiry review."
+    ],
+    "rejected_actions": [],
+    "risk_factors": ["production", "admin scope", "multi-user access"],
+    "precedents": [],
+    "expected_outcomes": [],
+    "verification_plan": ["verify grant", "verify MFA", "verify revocation"],
+    "obligations": [{"type": "revoke_access", "due_in": "4h"}],
+    "learning_hooks": ["capture_review_outcome"],
+    "packet_sha256": "9f916ec63fbcf4d7008b6ec9509964315654a29e4aeb49d6091914c6c6df8fa6"
+  },
+  "decision_brain": {
+    "recommendation": "review_recommended",
+    "reasoning_summary": "The requested scope is broader than necessary for a production admin grant.",
+    "confidence": 0.84,
+    "expected_regret": 0.31,
+    "meta_state": [{"code": "limited_evidence"}],
+    "selected_policy": "least_privilege",
+    "precedent_count": null,
+    "world_state_used": true,
+    "review_reason": "Production privileged access requires review.",
+    "alternatives": [
+      {
+        "action": "Grant admin access only to users 1-3 for 4h, require MFA, and create expiry review.",
+        "rationale": "Reduced scope and duration"
+      }
+    ],
+    "recommended_execution_mode": "review",
+    "raw": {}
+  },
+  "model_selection": {
+    "selected_model": null,
+    "selected_decision_path": null,
+    "reason": null,
+    "frontier_required": false,
+    "native_possible": null,
+    "packet_required": true,
+    "review_required": true
+  }
+}

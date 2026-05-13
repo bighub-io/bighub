@@ -1,8 +1,10 @@
-# BIGHUB Python SDK
+# BIGHUB SDK
 
-**BIGHUB is a decision layer for AI agents. It evaluates decisions in context, returns structured recommendations, and improves over time from real outcomes.**
+Add better decisions to IT agent workflows.
 
-> Evaluate agent actions, receive structured recommendations, report real outcomes, and improve future decisions from experience.
+**BIGHUB turns proposed IT agent actions into better decisions before they run.**
+
+BIGHUB takes a proposed IT action, builds a Decision Packet, runs DecisionBrain, selects the right decision path, and returns the better action before execution.
 
 ```bash
 pip install bighub
@@ -18,7 +20,7 @@ Python 3.9+. Single dependency: `httpx`.
 
 - [Quick Start](#quick-start)
 - [When to use BIGHUB](#when-to-use-bighub)
-- [Structured recommendation](#structured-recommendation)
+- [Decision object](#decision-object)
 - [Trajectory-aware evaluation](#trajectory-aware-evaluation)
 - [Core Loop (detailed)](#core-loop-detailed)
 
@@ -43,76 +45,101 @@ Python 3.9+. Single dependency: `httpx`.
 ## Quick Start
 
 ```python
-from bighub import BighubClient
+from bighub import Bighub
 
-client = BighubClient(api_key="your_api_key")
+bighub = Bighub(api_key="your_api_key")
 
-# 1. Submit a decision for evaluation
-result = client.actions.submit(
-    action="refund_full",
-    value=450.0,
-    domain="customer_transactions",
-    target="order_12345",
-    actor="refund_agent",
+decision = bighub.decide(
+    action="Rotate database credentials across production services",
+    context={
+        "system": "database",
+        "environment": "production",
+        "services": ["billing", "payments", "auth"],
+    },
 )
 
-# 2. Inspect the recommendation
-print(result["recommendation"])             # proceed, proceed_with_caution, review_recommended, do_not_proceed
-print(result["recommendation_confidence"])   # high, medium, low
-print(result["risk_score"])                  # 0.0 – 1.0
+print(decision.better_action)
+print(decision.selected_model)
+print(decision.mode)
+print(decision.risk)
 
-# 3. Let your agent or runtime act
-if result["recommendation"] in ("proceed", "proceed_with_caution"):
-    execute_refund()
-
-    # 4. Report the real outcome
-    client.outcomes.report(
-        request_id=result["request_id"],
-        status="SUCCESS",
-        description="Refund processed, customer retained",
-    )
-elif result["recommendation"] == "review_recommended":
-    request_human_review()
+if decision.needs_review:
+    decision.request_review()
+elif decision.needs_more_context:
+    print("More context required:", decision.reason)
+elif decision.should_not_run:
+    print("Do not run:", decision.reason)
+elif decision.can_run:
+    action_to_run = decision.better_action or decision.proposed_action
+    run(action_to_run)
 else:
-    skip_refund()
+    print(decision.brain.reasoning_summary)
 
-client.close()
+bighub.close()
 ```
 
-That is the core loop:
+The core public flow:
 
-**submit for evaluation → inspect recommendation → act → report outcome → learn**
+**proposed IT action -> selected model -> Decision Packet -> DecisionBrain -> better action -> execution mode -> review if needed**
 
 ---
 
 ## When to use BIGHUB
 
-Use BIGHUB when agent actions:
+Use BIGHUB before IT agent actions such as:
 
-- **Have real consequences** — financial, operational, or reputational impact
-- **Are ambiguous or multi-step** — the right call depends on context, trajectory, and prior outcomes
-- **Produce observable outcomes** — you can report what actually happened after execution
-- **Need to improve over time** — static rules aren't enough; you want recommendations that get better with experience
+- granting Okta access
+- rotating credentials
+- deploying or rolling back services
+- changing CI/CD or cloud/IAM settings
+- exporting sensitive data
+- posting incident or support updates
+- acting on workflows that need human review
 
-If your agent just reads data or performs idempotent lookups, you probably don't need BIGHUB. It's designed for actions where mistakes cost money, time, or trust.
+If your agent only reads data or performs idempotent lookups, you probably do not need BIGHUB. It is designed for actions where the right scope, timing, model, and review path matter.
 
 ---
 
-## Structured recommendation
+## Decision object
 
-Every evaluation returns a structured recommendation — not just allow / block:
+`bighub.decide(...)` returns a rich `Decision` object:
 
 | Field | Description |
 |---|---|
-| `recommendation` | `proceed`, `proceed_with_caution`, `review_recommended`, `do_not_proceed` |
-| `recommendation_confidence` | `high`, `medium`, `low` |
-| `risk_score` | Aggregated risk (0–1) |
-| `enforcement_mode` | `advisory`, `review`, `enforced` |
-| `decision_intelligence` | Rationale, evidence status, trajectory health, alternatives, projected regret |
-| `warnings` | Context-specific warning messages |
-| `request_id` | Unique identifier to link outcomes and audit trail |
+| `better_action` | A real backend-produced better action when available; otherwise `None` |
+| `selected_model` | Model or path BIGHUB selected for the decision |
+| `decision_path` | Native BIGHUB, packet + frontier model, review-first, or needs-more-context |
+| `packet` | `DecisionPacket`: intent, system context, constraints, candidates, risks, precedents, verification |
+| `brain` | `DecisionBrainResult`: reasoning summary, confidence, regret, policy, alternatives |
+| `mode` | `autonomous`, `constrained`, `review`, `blocked`, `needs_context`, `shadow`, or `dry_run` |
+| `can_run` | Whether your workflow can execute `better_action` now |
+| `needs_review` | Whether a human should approve, deny, or modify the action |
+| `needs_more_context` | Whether the workflow should collect more context first |
+| `should_not_run` | Whether BIGHUB recommends not executing this action |
+| `reason` | Convenience read: top-level evaluate **`reason`** when present, otherwise brain **`review_reason`** / **`reasoning_summary`**, otherwise **`model_selection_reason`** |
 
-Legacy fields (`allowed`, `result`, `reason`) may still appear for backward compatibility but are not the primary surface.
+Legacy `BighubClient` and `client.actions.evaluate(...)` remain available for existing integrations.
+
+The SDK normalizes real `/actions/evaluate` responses. It does not invent model selection fields: if the backend does not return `selected_model`, `selected_decision_path`, or `model_selection.reason`, the corresponding SDK attributes are `None`. If a backend `decision_packet` has no `packet_sha256`, the SDK computes a stable local hash and marks it with `packet.packet_sha256_is_local=True`.
+
+The SDK also does not invent `better_action`. Use `decision.better_action or decision.proposed_action` only after checking `decision.needs_review`, `decision.needs_more_context`, `decision.should_not_run`, and confirming `decision.can_run`.
+
+Backend field mapping:
+
+| Backend field | SDK field | Fallback |
+|---|---|---|
+| `request_id`, `validation_id`, `id` | `decision.request_id` | `None` |
+| request `action`, raw `action`, runtime spine action | `decision.proposed_action` | `None` |
+| `better_action`, `recommended_action`, first alternative action | `decision.better_action` | `None` |
+| `selected_model`, `model_selection.selected_model` | `decision.selected_model` | `None` |
+| `model_selection.reason`, `model_selection_reason` | `decision.model_selection_reason` | `None` |
+| `selected_decision_path`, `decision_path` | `decision.decision_path` | `None` |
+| `decision_packet` | `decision.packet` | empty `DecisionPacket` |
+| `decision_intelligence`, `intelligence`, runtime spine | `decision.brain` | empty `DecisionBrainResult` |
+| `mode`, `execution_mode`, `result`, `recommendation`, `human_review` | `decision.mode` | `None` |
+| `risk_score`, `risk` | `decision.risk` | `None` |
+| numeric `confidence`, `intelligence.confidence.score` | `decision.confidence` | `None` |
+| `decision_intelligence.projected_regret`, runtime spine regret | `decision.expected_regret` | `None` |
 
 ---
 
@@ -126,51 +153,61 @@ For costly and multi-step workflows, trajectory-aware signals mean the same acti
 
 ## Core Loop (detailed)
 
-### 1) Submit a decision for evaluation
+### 1) Build a Decision Packet
 
 ```python
-result = client.actions.submit(
-    action="increase_price",
-    value=15.0,
-    domain="customer_transactions",
-    target="sku_789",
+packet = bighub.build_packet(
+    action="Grant temporary Okta admin access to user alice@example.com",
+    context={"system": "okta", "environment": "production", "ticket": "INC-8821"},
 )
 
-print(result["recommendation"])             # proceed_with_caution
-print(result["recommendation_confidence"])   # medium
-print(result["risk_score"])                  # 0.42
-print(result["warnings"])                    # ["Similar actions caused margin drops"]
+print(packet.packet_sha256)
 ```
 
-### 2) Inspect the recommendation and act
+### 2) Run DecisionBrain
 
 ```python
-if result["recommendation"] in ("proceed", "proceed_with_caution"):
-    apply_price_change()
-elif result["recommendation"] == "review_recommended":
-    request_human_review()
-else:
-    skip_action()
+brain = bighub.run_brain(packet=packet)
+
+print(brain.recommendation)
+print(brain.reasoning_summary)
 ```
 
-### 3) Report the real outcome
+### 3) Use the high-level decision API
 
 ```python
-client.outcomes.report(
-    request_id=result["request_id"],
-    status="CHURN",
-    description="Conversion dropped 12% after price increase",
-    revenue_impact=-3200.0,
+decision = bighub.decide(
+    action="Grant temporary Okta admin access to user alice@example.com",
+    context={"system": "okta", "environment": "production", "ticket": "INC-8821"},
+)
+
+if decision.needs_review:
+    bighub.reviews.resolve(
+        decision.request_id,
+        decision="modified",
+        better_action="Grant scoped Okta admin access for 2h",
+        reason="Reduce duration and scope",
+    )
+```
+
+### Optional: report outcomes
+
+When outcomes are reported later, BIGHUB can use them to improve future decisions.
+
+```python
+decision.report_outcome(
+    status="completed",
+    evidence={"deployment_id": "dep_123"},
 )
 ```
 
 ### 4) Reuse what was learned on future decisions
 
 ```python
-precedents = client.precedents.query(
-    domain="customer_transactions",
-    action="increase_price",
-    risk_score=0.42,
+precedents = bighub.precedents.query(
+    domain="it_actions",
+    action=decision.proposed_action,
+    risk_score=decision.risk,
 )
 
 print(precedents["total_precedents"])

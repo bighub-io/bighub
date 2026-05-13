@@ -34,6 +34,11 @@ class OutcomesAPI:
         observed_at: Optional[str] = None,
         reported_by: str = "",
         tags: Optional[List[str]] = None,
+        recommendation_followed: Optional[bool] = None,
+        production_action: str = "",
+        human_final_action: str = "",
+        outcome_label_quality: str = "",
+        decision_snapshot: Optional[JSONDict] = None,
     ) -> JSONDict:
         """Report a real-world outcome linked to a decision."""
         body: Dict[str, Any] = {"status": status}
@@ -73,6 +78,16 @@ class OutcomesAPI:
             body["reported_by"] = reported_by
         if tags:
             body["tags"] = tags
+        if recommendation_followed is not None:
+            body["recommendation_followed"] = recommendation_followed
+        if production_action:
+            body["production_action"] = production_action
+        if human_final_action:
+            body["human_final_action"] = human_final_action
+        if outcome_label_quality:
+            body["outcome_label_quality"] = outcome_label_quality
+        if decision_snapshot:
+            body["decision_snapshot"] = decision_snapshot
         return self._transport.request(
             method="POST", path="/outcomes/report", json_body=body
         )
@@ -200,6 +215,11 @@ class AsyncOutcomesAPI:
         observed_at: Optional[str] = None,
         reported_by: str = "",
         tags: Optional[List[str]] = None,
+        recommendation_followed: Optional[bool] = None,
+        production_action: str = "",
+        human_final_action: str = "",
+        outcome_label_quality: str = "",
+        decision_snapshot: Optional[JSONDict] = None,
     ) -> JSONDict:
         body: Dict[str, Any] = {"status": status}
         if request_id:
@@ -238,6 +258,16 @@ class AsyncOutcomesAPI:
             body["reported_by"] = reported_by
         if tags:
             body["tags"] = tags
+        if recommendation_followed is not None:
+            body["recommendation_followed"] = recommendation_followed
+        if production_action:
+            body["production_action"] = production_action
+        if human_final_action:
+            body["human_final_action"] = human_final_action
+        if outcome_label_quality:
+            body["outcome_label_quality"] = outcome_label_quality
+        if decision_snapshot:
+            body["decision_snapshot"] = decision_snapshot
         return await self._transport.request(
             method="POST", path="/outcomes/report", json_body=body
         )

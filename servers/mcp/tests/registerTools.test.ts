@@ -112,4 +112,63 @@ describe("registerBighubTools", () => {
       }),
     );
   });
+
+  it("registers modern better-decision MCP primitives", async () => {
+    const fakeServer = new FakeServer();
+    const request = vi.fn(async () => ({
+      request_id: "req_1",
+      proposed_action: "Grant Okta admin access",
+      better_action: "Grant scoped Okta admin access for 4h",
+      execution_mode: "review",
+      risk: 0.68,
+      can_run: false,
+      needs_review: true,
+      decision_packet: { system: "okta", packet_sha256: "abc" },
+      decision_brain: { recommendation: "review_recommended" },
+      model_selection: { selected_model: null },
+      allowed: false,
+      result: "requires_approval",
+      recommendation: "review_recommended",
+    }));
+    const fakeClient = { request } as unknown as BighubHttpClient;
+
+    registerBighubTools(fakeServer as never, fakeClient);
+
+    for (const toolName of [
+      "bighub_decide",
+      "bighub_build_packet",
+      "bighub_run_brain",
+      "bighub_list_reviews",
+      "bighub_resolve_review",
+      "bighub_get_system_context",
+      "bighub_get_world_state",
+      "bighub_report_outcome",
+    ]) {
+      expect(fakeServer.tools.get(toolName), `${toolName} should be registered`).toBeDefined();
+    }
+
+    const result = await fakeServer.tools.get("bighub_decide")?.handler({
+      action: "Grant Okta admin access",
+      context: { system: "okta" },
+      objective: "better_decision",
+      model_selection: "auto",
+      actor: "AI_AGENT",
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "POST",
+        path: "/actions/evaluate",
+        body: expect.objectContaining({
+          action: "Grant Okta admin access",
+          context: { system: "okta", objective: "better_decision", model_selection: "auto" },
+        }),
+      }),
+    );
+    const text = (result as { content: Array<{ text: string }> }).content[0].text;
+    const payload = JSON.parse(text);
+    expect(payload.better_action).toBe("Grant scoped Okta admin access for 4h");
+    expect(payload.needs_review).toBe(true);
+    expect(payload.allowed).toBe(false);
+  });
 });

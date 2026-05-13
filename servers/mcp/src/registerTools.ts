@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { BighubHttpClient } from "./httpClient.js";
@@ -21,6 +22,10 @@ function toResult(data: unknown) {
 
 function cleanObject(input: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+}
+
+function packetHash(input: Record<string, unknown>): string {
+  return createHash("sha256").update(JSON.stringify(input, Object.keys(input).sort())).digest("hex");
 }
 
 export function registerBighubTools(server: McpServer, client: BighubHttpClient): void {
@@ -47,6 +52,201 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
           body,
           headers,
           idempotencyKey: idempotency_key,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_decide",
+    {
+      description: "Turn a proposed IT agent action into a better decision before it runs.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        action: z.string(),
+        context: JsonObjectSchema.optional(),
+        objective: z.string().default("better_decision"),
+        model_selection: z.string().default("auto"),
+        actor: z.string().default("AI_AGENT"),
+        domain: z.string().optional(),
+        target: z.string().optional(),
+        value: z.number().optional(),
+        dry_run: z.boolean().optional(),
+        idempotency_key: z.string().optional(),
+      },
+    },
+    async ({ action, context, objective, model_selection, actor, domain, target, value, dry_run, idempotency_key }) => {
+      const mergedContext = { ...(context || {}), objective, model_selection };
+      return toResult(
+        await client.request({
+          method: "POST",
+          path: "/actions/evaluate",
+          body: cleanObject({ action, actor, domain, target, value, dry_run, context: mergedContext }),
+          idempotencyKey: idempotency_key,
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "bighub_build_packet",
+    {
+      description: "Build a local Decision Packet for a proposed IT action.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        action: z.string(),
+        context: JsonObjectSchema.optional(),
+        objective: z.string().default("better_decision"),
+        system: z.string().optional(),
+        environment: z.string().optional(),
+      },
+    },
+    async ({ action, context, objective, system, environment }) => {
+      const packet = cleanObject({
+        intent: objective,
+        action_type: "it_action",
+        system: system || (context || {}).system,
+        environment: environment || (context || {}).environment,
+        context: context || {},
+        candidate_actions: [action],
+        constraints: (context || {}).constraints || [],
+        risk_factors: (context || {}).risk_factors || [],
+      });
+      return toResult({ ...packet, packet_sha256: packetHash(packet) });
+    },
+  );
+
+  server.registerTool(
+    "bighub_run_brain",
+    {
+      description: "Run BIGHUB DecisionBrain on a Decision Packet.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        packet: JsonObjectSchema,
+        actor: z.string().default("AI_AGENT"),
+        idempotency_key: z.string().optional(),
+      },
+    },
+    async ({ packet, actor, idempotency_key }) => {
+      const candidateActions = Array.isArray(packet.candidate_actions) ? packet.candidate_actions : [];
+      const action = String(candidateActions[0] || packet.action || "proposed_it_action");
+      return toResult(
+        await client.request({
+          method: "POST",
+          path: "/actions/evaluate",
+          body: cleanObject({
+            action,
+            actor,
+            domain: packet.system,
+            context: { ...(typeof packet.context === "object" && packet.context ? packet.context : {}), decision_packet: packet },
+            dry_run: true,
+          }),
+          idempotencyKey: idempotency_key,
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "bighub_list_reviews",
+    {
+      description: "List human reviews for decisions that need approval or modification.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        status: z.string().default("pending"),
+        limit: z.number().optional(),
+      },
+    },
+    async ({ status, limit }) =>
+      toResult(await client.request({ method: "GET", path: "/approvals", query: cleanObject({ status, limit }) })),
+  );
+
+  server.registerTool(
+    "bighub_resolve_review",
+    {
+      description: "Resolve a review as approved, denied, or modified with a better action.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        request_id: z.string(),
+        decision: z.enum(["approved", "denied", "modified"]),
+        reason: z.string().optional(),
+        better_action: z.string().optional(),
+      },
+    },
+    async ({ request_id, decision, reason, better_action }) => {
+      const resolution = decision === "modified" ? "approved" : decision;
+      return toResult(
+        await client.request({
+          method: "POST",
+          path: `/approvals/${request_id}/resolve`,
+          body: cleanObject({ resolution, comment: reason, review_decision: decision, better_action }),
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "bighub_get_world_state",
+    {
+      description: "Read the operational world state BIGHUB sees before decisions.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        limit: z.number().default(100),
+        freshness_minutes: z.number().default(30),
+        in_flight_minutes: z.number().default(60),
+      },
+    },
+    async ({ limit, freshness_minutes, in_flight_minutes }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: "/world-state/operational",
+          query: { limit, freshness_minutes, in_flight_minutes },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_get_system_context",
+    {
+      description: "Get lightweight context for an IT system such as Okta or Slack.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        system: z.string(),
+        user_login: z.string().optional(),
+      },
+    },
+    async ({ system, user_login }) => {
+      if (system === "okta" && user_login) {
+        return toResult(await client.request({ method: "GET", path: `/integrations/okta/user/${encodeURIComponent(user_login)}` }));
+      }
+      if (system === "okta") {
+        return toResult(await client.request({ method: "GET", path: "/integrations/okta/connection" }));
+      }
+      if (system === "slack") {
+        return toResult(await client.request({ method: "GET", path: "/integrations/slack/connection" }));
+      }
+      return toResult({ system, context: "No first-class connector context yet. Pass system details in bighub_decide.context." });
+    },
+  );
+
+  server.registerTool(
+    "bighub_report_outcome",
+    {
+      description: "Optionally report what happened later so future decisions improve.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        request_id: z.string(),
+        status: z.string(),
+        evidence: JsonObjectSchema.optional(),
+        description: z.string().optional(),
+      },
+    },
+    async ({ request_id, status, evidence, description }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: "/outcomes/report",
+          body: cleanObject({ request_id, status, details: evidence, description }),
         }),
       ),
   );

@@ -1,9 +1,10 @@
 # BIGHUB OpenAI Adapter (JavaScript/TypeScript)
 
-OpenAI adapter for Node.js — add decision learning to tool/function calls with BIGHUB.
+The JavaScript OpenAI adapter is *coming soon*. For JavaScript workflows today, use the **[BIGHUB MCP server](../../../servers/mcp/)**.
 
-**Status:** Coming soon.
+The public BIGHUB developer surface is centered on **Better decisions for IT agent actions**, not static guardrail framing: proposed IT action → **Decision Packet** → **DecisionBrain** → execution guidance before you run.
 
 ## Links
 
 - [Main README](../../../README.md)
+- [Python OpenAI adapter (available today)](../../python/openai/) — use as reference for the Better Decision tool-call flow

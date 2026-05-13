@@ -572,6 +572,8 @@ def test_outcome_reporting_after_tool_execution() -> None:
     assert len(fake_bighub.outcomes.reported) == 1
     assert fake_bighub.outcomes.reported[0]["status"] == "SUCCESS"
     assert fake_bighub.outcomes.reported[0]["request_id"] == "req_sync_1"
+    assert fake_bighub.outcomes.reported[0]["production_action"] == "refund_payment"
+    assert fake_bighub.outcomes.reported[0]["recommendation_followed"] is None
 
 
 def test_outcome_reporting_maps_tool_error_to_failure() -> None:
@@ -641,6 +643,7 @@ def test_async_outcome_reporting() -> None:
         )
         assert len(fake_bighub.outcomes.reported) == 1
         assert fake_bighub.outcomes.reported[0]["status"] == "SUCCESS"
+        assert fake_bighub.outcomes.reported[0]["production_action"] == "refund_payment"
         await guard.close()
 
     asyncio.run(_run())
@@ -1399,6 +1402,123 @@ def test_structured_recommendation_fields_on_tool_result() -> None:
     assert last["recommendation"] == "proceed"
     assert last["risk_score"] == 0.15
     assert last["enforcement_mode"] == "advisory"
+    assert guard._bighub.outcomes.reported[0]["recommendation_followed"] is True
+
+
+def test_blocked_decision_does_not_report_outcome() -> None:
+    fake_bighub = FakeBighubClient()
+
+    class BlockingActions:
+        def submit(self, **kwargs):
+            return {
+                "allowed": False,
+                "result": "blocked",
+                "reason": "Too risky",
+                "request_id": "req_blocked_1",
+                "recommendation": "do_not_proceed",
+            }
+
+        def ingest_memory(self, **kwargs):
+            return {"accepted": len(kwargs.get("events", []))}
+
+    fake_bighub.actions = BlockingActions()
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=fake_bighub,
+        outcome_reporting=True,
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    assert len(fake_bighub.outcomes.reported) == 0
+
+
+def test_outcome_reporting_required_raises_when_report_fails() -> None:
+    class FailingOutcomes:
+        def report(self, **kwargs):
+            raise RuntimeError("outcome endpoint unavailable")
+
+    fake_bighub = FakeBighubClient()
+    fake_bighub.outcomes = FailingOutcomes()
+    guard = BighubOpenAI(
+        bighub_api_key="bhk_test",
+        actor="AI_AGENT_001",
+        domain="payments",
+        openai_client=FakeOpenAIClient(),
+        bighub_client=fake_bighub,
+        outcome_reporting=True,
+        outcome_reporting_required=True,
+    )
+    guard.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+    try:
+        guard.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+        assert False, "Expected strict outcome reporting failure"
+    except RuntimeError as exc:
+        assert "outcome report failed" in str(exc).lower()
+
+
+def test_openai_adapter_supports_decision_first_action_api() -> None:
+    fake_bighub = FakeBighubClient()
+    agent = BighubOpenAI(
+        openai_client=FakeOpenAIClient(),
+        bighub=fake_bighub,
+        actor="ops-agent",
+        domain="it_actions",
+        decision_objective="better_decision",
+        model_selection="auto",
+    )
+
+    @agent.action(system="okta", risk="high", environment="production")
+    def refund_payment(order_id: str, amount: float) -> dict:
+        return {"ok": True, "order_id": order_id, "amount": amount}
+
+    response = agent.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+    decision = response["execution"]["last"]["decision"]
+    context = decision["echo"]["context"]
+
+    assert "refund_payment" in [tool["function"]["name"] for tool in agent.list_tools()]
+    assert context["objective"] == "better_decision"
+    assert context["model_selection"] == "auto"
+    assert context["system"] == "okta"
+    assert context["risk"] == "high"
+    assert context["environment"] == "production"
+
+
+def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
+    class ModernDecisions:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def evaluate(self, **kwargs):
+            self.calls.append(kwargs)
+            assert kwargs["raw"] is True
+            return {
+                "allowed": True,
+                "result": "allowed",
+                "recommendation": "proceed",
+                "request_id": "req_modern_1",
+                "better_decision_contract_version": "2026-05-13",
+                "proposed_action": kwargs["action"],
+                "execution_mode": "autonomous",
+                "can_run": True,
+            }
+
+    fake_bighub = FakeBighubClient()
+    fake_bighub.decisions = ModernDecisions()
+    agent = BighubOpenAI(
+        openai_client=FakeOpenAIClient(),
+        bighub=fake_bighub,
+        actor="ops-agent",
+        domain="it_actions",
+    )
+    agent.tool("refund_payment", lambda order_id, amount: {"ok": True}, value_from_args=lambda a: float(a["amount"]))
+
+    response = agent.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
+
+    assert response["execution"]["last"]["decision"]["request_id"] == "req_modern_1"
+    assert fake_bighub.decisions.calls[0]["context"]["objective"] == "better_decision"
 
 
 def test_structured_recommendation_blocks_do_not_proceed() -> None:

@@ -1,70 +1,129 @@
 # BIGHUB Python examples
 
-Sample code using the BIGHUB Python SDK and adapters.
+Sample patterns for **`bighub.decide(...)`**: proposed IT agent action → **Decision Packet** → **DecisionBrain** → flags and optional **`better_action`** before execution.
 
-- Use `bighub` to evaluate agent actions, receive recommendations, report outcomes, and learn from past decisions.
-- Use `bighub-openai` to add decision learning to OpenAI tool calls.
+These examples use `bighub.decide(...)`, the same Decision Packet-centered flow used in BIGHUB’s GPT-5.5 benchmark suite.
 
-## Quick smoke example (SDK)
+---
+
+## Quick example: privileged access review
+
+```python
+from bighub import Bighub
+
+
+def run(action_to_run):
+    """Execute via your toolchain (Okta Admin API, runbook, ticket workflow, …)."""
+    raise NotImplementedError("Integrate with your executor.")
+
+
+bighub = Bighub(api_key="...")
+
+decision = bighub.decide(
+    action="Grant temporary Okta admin access to users 1-9 for 48h",
+    context={
+        "system": "okta",
+        "environment": "production",
+        "ticket": "INC-8821",
+    },
+)
+
+if decision.needs_review:
+    decision.request_review()
+elif decision.needs_more_context:
+    print("More context required:", decision.reason)
+elif decision.should_not_run:
+    print("Do not run:", decision.reason)
+elif decision.can_run:
+    action_to_run = decision.better_action or decision.proposed_action
+    run(action_to_run)
+
+bighub.close()
+```
+
+- **`better_action`** may be **`None`**: use **`decision.better_action or decision.proposed_action`** only after **`can_run`** and the review/context/do-not-run branches above. BIGHUB does not treat a paraphrase of the same action as a “better” alternative.
+- **`selected_model`** / **`model_selection`** may be **`None`** unless the backend actually selected a path.
+
+---
+
+## More IT-oriented `decide` calls
+
+Rotate credentials across production tiers:
+
+```python
+decision = bighub.decide(
+    action="Rotate production database credentials for billing and payments shards",
+    context={
+        "system": "database",
+        "environment": "production",
+        "services": ["billing", "payments"],
+        "ticket": "CHG-4401",
+    },
+)
+```
+
+Deploy with explicit rollback posture:
+
+```python
+decision = bighub.decide(
+    action="Roll out billing-api v3.12 to prod and scale replicas to 8",
+    context={
+        "system": "kubernetes",
+        "environment": "production",
+        "service": "billing-api",
+        "version": "v3.12",
+    },
+)
+```
+
+Incident channel update:
+
+```python
+decision = bighub.decide(
+    action="Post all-clear to #incidents for INC-9912 after verifier passes",
+    context={
+        "system": "slack",
+        "environment": "production",
+        "channel": "#incidents",
+        "ticket": "INC-9912",
+    },
+)
+```
+
+Reuse the same **review / context / should_not_run / can_run + better_action-or-proposed** branching as in the first example.
+
+---
+
+## OpenAI tool runtime
+
+Use **`bighub-openai`** to attach the Better Decision layer to OpenAI Responses tool calls (`BighubOpenAI`, `@agent.action`). See **[adapters/python/openai/README.md](../../adapters/python/openai/)**.
+
+---
+
+## Legacy / low-level API
+
+Older snippets may use **`BighubClient`** with **`actions.submit`** or **`actions.evaluate`** returning raw payloads. Prefer **`bighub.decide`** for IT workflows; legacy calls remain supported for backward compatibility.
 
 ```python
 from bighub import BighubClient
 
-client = BighubClient(api_key="your_api_key")
+client = BighubClient(api_key="...")
 
-result = client.actions.submit(
-    action="refund_full",
-    value=199.99,
-    domain="customer_transactions",
-    actor="refund_agent",
+legacy = client.actions.evaluate(
+    action="example_action",
+    value=150.0,
+    domain="example_domain",
+    actor="agent_001",
 )
+# Or use client.actions.submit(...) as an alias of evaluate(...)
 
-print(result["recommendation"])             # proceed, proceed_with_caution, review_recommended, do_not_proceed
-print(result["recommendation_confidence"])   # high, medium, low
-print(result["risk_score"])                  # 0.0 – 1.0
-
-if result["recommendation"] in ("proceed", "proceed_with_caution"):
-    # execute your runtime action here
-    client.outcomes.report(
-        request_id=result["request_id"],
-        status="SUCCESS",
-        description="Refund processed successfully",
-    )
+# Raw dict surfaces (recommendation, risk_score, etc.) still supported
 
 client.close()
 ```
 
-## Quick smoke example (bighub-openai)
+---
 
-```python
-import os
-from bighub_openai import BighubOpenAI
+## References
 
-def refund_payment(order_id: str, amount: float) -> dict:
-    return {"ok": True, "order_id": order_id, "amount": amount}
-
-runtime = BighubOpenAI(
-    openai_api_key=os.getenv("OPENAI_API_KEY"),
-    bighub_api_key=os.getenv("BIGHUB_API_KEY"),
-    actor="AI_AGENT_001",
-    domain="customer_transactions",
-)
-
-runtime.tool("refund_payment", refund_payment, value_from_args=lambda a: a["amount"])
-
-response = runtime.run(
-    messages=[{"role": "user", "content": "Refund order ord_123 for 199.99"}],
-    model="gpt-4.1",
-)
-
-print(response["execution"]["last"]["decision"]["recommendation"])
-```
-
-## Notes
-
-- Free BETA limits: 3 agents, 2,500 actions/month, 30 days history, 1 environment.
-- `actions.submit(...)` is the default endpoint in Free BETA.
-- `actions.submit_payload(...)` is available as an advanced action submission endpoint.
-- Use valid outcome statuses such as `SUCCESS`, `FAILURE`, `ROLLBACK`, `INCIDENT`, `CHURN`, or `NO_EFFECT`.
-
-See [sdk/python/](../../sdk/python/) and [adapters/python/openai/](../../adapters/python/openai/).
+Free BETA limits and finer-grained APIs: **[sdk/python/README.md](../../sdk/python/)** · MCP: **[servers/mcp/README.md](../../servers/mcp/)**

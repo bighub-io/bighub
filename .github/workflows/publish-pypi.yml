@@ -37,7 +37,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tooling
-        run: python -m pip install --upgrade build twine pytest
+        run: python -m pip install --upgrade build twine
+
+      - name: Install SDK test dependencies
+        run: python -m pip install "./sdk/python[dev]"
 
       - name: Run SDK tests
         run: python -m pytest -q sdk/python/tests
@@ -77,10 +80,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tooling
-        run: python -m pip install --upgrade build twine pytest
+        run: python -m pip install --upgrade build twine
 
-      - name: Install local SDK for adapter tests
-        run: python -m pip install ./sdk/python
+      - name: Install local packages for adapter tests
+        run: python -m pip install "./sdk/python[dev]" "./adapters/python/openai[dev]"
 
       - name: Run adapter tests
         run: python -m pytest -q adapters/python/openai/tests

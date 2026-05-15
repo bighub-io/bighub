@@ -62,6 +62,61 @@ class ModelSelection:
 
 
 @dataclass
+class DecisionBrief:
+    """Small, stable view of a decision for agents and product code.
+
+    ``Decision`` keeps the full normalized object and raw backend payload for
+    advanced users. ``DecisionBrief`` is the polished surface: enough to choose
+    the next step without learning every historical response shape.
+    """
+
+    request_id: Optional[str]
+    proposed_action: Optional[str]
+    recommended_action: Optional[str]
+    recommendation: Optional[str]
+    mode: Optional[str]
+    can_run: bool
+    needs_review: bool
+    needs_more_context: bool
+    should_not_run: bool
+    risk: Optional[float] = None
+    confidence: Optional[float] = None
+    expected_regret: Optional[float] = None
+    reason: Optional[str] = None
+    system: Optional[str] = None
+    selected_model: Optional[str] = None
+    decision_path: Optional[str] = None
+    world_state_used: Optional[bool] = None
+    verification_steps: int = 0
+    obligations: int = 0
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> JSONDict:
+        return {
+            "request_id": self.request_id,
+            "proposed_action": self.proposed_action,
+            "recommended_action": self.recommended_action,
+            "recommendation": self.recommendation,
+            "mode": self.mode,
+            "can_run": self.can_run,
+            "needs_review": self.needs_review,
+            "needs_more_context": self.needs_more_context,
+            "should_not_run": self.should_not_run,
+            "risk": self.risk,
+            "confidence": self.confidence,
+            "expected_regret": self.expected_regret,
+            "reason": self.reason,
+            "system": self.system,
+            "selected_model": self.selected_model,
+            "decision_path": self.decision_path,
+            "world_state_used": self.world_state_used,
+            "verification_steps": self.verification_steps,
+            "obligations": self.obligations,
+            "warnings": self.warnings,
+        }
+
+
+@dataclass
 class Decision:
     """The central SDK object: a better decision for a proposed IT agent action."""
 
@@ -250,6 +305,42 @@ class Decision:
             "learning_hooks": self.learning_hooks,
             "model_selection": self.model_selection.to_dict(),
         }
+
+    def brief(self) -> DecisionBrief:
+        """Return the polished decision surface most callers should consume."""
+
+        warnings = self.raw.get("warnings")
+        if not isinstance(warnings, list):
+            warnings = []
+        return DecisionBrief(
+            request_id=self.request_id,
+            proposed_action=self.proposed_action,
+            recommended_action=self.better_action or self.proposed_action,
+            recommendation=self.brain.recommendation or _optional_str(self.raw.get("recommendation") or self.raw.get("result")),
+            mode=self.mode,
+            can_run=self.can_run,
+            needs_review=self.needs_review,
+            needs_more_context=self.needs_more_context,
+            should_not_run=self.should_not_run,
+            risk=self.risk,
+            confidence=self.confidence,
+            expected_regret=self.expected_regret,
+            reason=self.reason,
+            system=self.packet.system or _optional_str(self.raw.get("domain")),
+            selected_model=self.selected_model,
+            decision_path=self.decision_path,
+            world_state_used=self.brain.world_state_used,
+            verification_steps=len(self.verification_plan),
+            obligations=len(self.obligations),
+            warnings=[str(item) for item in warnings if item not in (None, "")],
+        )
+
+    summary = brief
+
+    def to_brief_dict(self) -> JSONDict:
+        """Dictionary form of :meth:`brief` for JSON logs and MCP adapters."""
+
+        return self.brief().to_dict()
 
 
 @dataclass

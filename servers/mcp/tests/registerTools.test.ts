@@ -143,6 +143,8 @@ describe("registerBighubTools", () => {
       "bighub_get_system_context",
       "bighub_get_world_state",
       "bighub_report_outcome",
+      "bighub_systems_get_connection",
+      "bighub_systems_poll_metrics",
     ]) {
       expect(fakeServer.tools.get(toolName), `${toolName} should be registered`).toBeDefined();
     }
@@ -168,7 +170,85 @@ describe("registerBighubTools", () => {
     const text = (result as { content: Array<{ text: string }> }).content[0].text;
     const payload = JSON.parse(text);
     expect(payload.better_action).toBe("Grant scoped Okta admin access for 4h");
+    expect(payload.recommended_action).toBe("Grant scoped Okta admin access for 4h");
+    expect(payload.mode).toBe("review");
     expect(payload.needs_review).toBe(true);
     expect(payload.allowed).toBe(false);
+    expect(payload.raw.request_id).toBe("req_1");
+
+    const packetResult = await fakeServer.tools.get("bighub_build_packet")?.handler({
+      action: "Grant access",
+      context: { system: "okta", environment: "prod" },
+      system: "okta",
+      environment: "prod",
+    });
+    const packetText = (packetResult as { content: Array<{ text: string }> }).content[0].text;
+    const packet = JSON.parse(packetText);
+    expect(packet.packet_sha256).toBe("c4c66e9f0d21a1071aa45bb408b6adbc79546b97e8f8332099b5dd86643e5b6e");
+
+    const brainResult = await fakeServer.tools.get("bighub_run_brain")?.handler({
+      packet: { system: "okta", candidate_actions: ["Grant Okta admin access"], context: { system: "okta" } },
+      actor: "AI_AGENT",
+    });
+    const brainPayload = JSON.parse((brainResult as { content: Array<{ text: string }> }).content[0].text);
+    expect(brainPayload.recommended_action).toBe("Grant scoped Okta admin access for 4h");
+    expect(brainPayload.raw.request_id).toBe("req_1");
+  });
+
+  it("registers systems tools and calls polling endpoints", async () => {
+    const fakeServer = new FakeServer();
+    const request = vi.fn(async () => ({ ok: true }));
+    const fakeClient = { request } as unknown as BighubHttpClient;
+
+    registerBighubTools(fakeServer as never, fakeClient);
+
+    await fakeServer.tools.get("bighub_systems_get_connection")?.handler({
+      provider: "gitlab-ci",
+      org_id: 42,
+    });
+    await fakeServer.tools.get("bighub_systems_update_poll_schedule")?.handler({
+      provider: "prometheus",
+      enabled: true,
+      interval_seconds: 120,
+      max_backoff_seconds: 900,
+    });
+    await fakeServer.tools.get("bighub_systems_save_connection")?.handler({
+      provider: "k8s",
+      config: { kubeconfig: "redacted" },
+      display_name: "Production Kubernetes",
+    });
+    await fakeServer.tools.get("bighub_systems_run_due_polls")?.handler({});
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        method: "GET",
+        path: "/integrations/gitlab/connection",
+        query: { org_id: 42 },
+      }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: "PUT",
+        path: "/integrations/prometheus/poll/schedule",
+        body: { enabled: true, interval_seconds: 120, max_backoff_seconds: 900 },
+      }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        method: "PUT",
+        path: "/integrations/kubernetes/connection",
+        body: { kubeconfig: "redacted", display_name: "Production Kubernetes" },
+      }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        method: "POST",
+        path: "/integrations/poll/run-due",
+      }),
+    );
   });
 });

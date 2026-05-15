@@ -32,7 +32,7 @@ For any MAJOR release, include an explicit migration note in `CHANGELOG.md`.
 4. **Tag**
   - Create git tag: `sdk-python-vX.Y.Z`
 5. **Publish**
-  - Push the version tag; the CI release workflow publishes the package to PyPI.
+  - Push the version tag; `.github/workflows/publish-pypi.yml` publishes the package to PyPI.
 6. **Cross-surface consistency gate**
   - Ensure `sdk/python/README.md`, `adapters/python/openai/README.md`, and `servers/mcp/README.md` use aligned method names and field names
   - Ensure outcome statuses in snippets are valid backend statuses
@@ -59,14 +59,7 @@ For any release `X.Y.Z`:
 
 ## Git tag convention
 
-- `sdk-python-v0.1.0`
-- `sdk-python-v0.2.0`
-- `sdk-python-v0.2.1`
-- `sdk-python-v0.2.4`
-- `sdk-python-v0.2.6`
-- `sdk-python-v0.3.0`
-- `sdk-python-v3.0.0`
-- `sdk-python-v1.0.0`
+- `sdk-python-v0.1.0b1`
 
 ## Branch policy
 

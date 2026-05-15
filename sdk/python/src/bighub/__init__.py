@@ -1,7 +1,7 @@
 from .async_client import AsyncBighubClient
 from .brain import DecisionBrainResult
 from .client import Bighub
-from .decisions import AsyncDecision, BackendDecisionNormalizer, Decision, ModelSelection
+from .decisions import AsyncDecision, BackendDecisionNormalizer, Decision, DecisionBrief, ModelSelection
 from .exceptions import (
     BighubAPIError,
     BighubAuthError,
@@ -91,6 +91,12 @@ from .types import (
     RuleValidateRequest,
     SimulationInfoDict,
     SimulationLiteDict,
+    SystemConnectionResponse,
+    SystemPollHistoryResponse,
+    SystemPollMetricsResponse,
+    SystemPollScheduleResponse,
+    SystemPollStatusResponse,
+    SystemProvider,
     TrajectoryStateDict,
     ValidationVerifyResponse,
     ValueProtectedHistoryPoint,
@@ -112,6 +118,7 @@ __all__ = [
     "AsyncBighubClient",
     "Decision",
     "AsyncDecision",
+    "DecisionBrief",
     "DecisionPacket",
     "DecisionBrainResult",
     "ModelSelection",
@@ -169,6 +176,13 @@ __all__ = [
     "MemoryRecommendationsResponse",
     # Live connection
     "LiveConnectionResponse",
+    # Systems integrations
+    "SystemProvider",
+    "SystemConnectionResponse",
+    "SystemPollScheduleResponse",
+    "SystemPollHistoryResponse",
+    "SystemPollMetricsResponse",
+    "SystemPollStatusResponse",
     # Trajectory types
     "ForecastResultDict",
     "DecisionBranchScoreDict",

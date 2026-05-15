@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from bighub import AsyncBighubClient, AsyncDecision, Bighub, BighubClient, Decision, DecisionPacket, ModelSelection
+from bighub import AsyncBighubClient, AsyncDecision, Bighub, BighubClient, Decision, DecisionBrief, DecisionPacket, ModelSelection
 
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "canonical_better_decision_response.json"
@@ -74,6 +74,15 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert decision.brain.confidence == 0.84
     assert decision.brain.world_state_used is True
     assert decision.reason == payload["reason"]
+
+    brief = decision.brief()
+    assert isinstance(brief, DecisionBrief)
+    assert brief.request_id == "VAL_1010"
+    assert brief.recommended_action == payload["better_action"]
+    assert brief.needs_review is True
+    assert brief.system == "okta"
+    assert brief.world_state_used is True
+    assert brief.to_dict()["recommendation"] == payload["decision_brain"]["recommendation"]
 
 
 def test_bighub_decide_returns_decision_object() -> None:
@@ -172,6 +181,17 @@ def test_decision_packet_maps_backend_packet_shape() -> None:
     assert packet.candidate_actions == []
     assert packet.packet_sha256
     assert packet.packet_sha256_is_local is True
+
+
+def test_decision_packet_hash_uses_canonical_json() -> None:
+    packet = DecisionPacket.build(
+        action="Grant access",
+        context={"system": "okta", "environment": "prod"},
+        system="okta",
+        environment="prod",
+    )
+
+    assert packet.packet_sha256 == "c4c66e9f0d21a1071aa45bb408b6adbc79546b97e8f8332099b5dd86643e5b6e"
 
 
 def test_decision_request_review_and_report_outcome_call_expected_apis() -> None:

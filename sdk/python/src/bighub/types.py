@@ -1,9 +1,59 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 
 JSONDict = Dict[str, Any]
+
+SystemProvider = Literal[
+    "github",
+    "sentry",
+    "datadog",
+    "aws_cloudtrail",
+    "terraform",
+    "kubernetes",
+    "argocd",
+    "gitlab",
+    "jenkins",
+    "azure",
+    "prometheus",
+    "grafana",
+    "openshift",
+]
+
+
+class SystemConnectionResponse(TypedDict, total=False):
+    provider: SystemProvider
+    configured: bool
+    display_name: Optional[str]
+    config: JSONDict
+    test: JSONDict
+    last_error: Optional[str]
+    last_checked_at: Optional[str]
+    security_requirements: JSONDict
+    credential_audit: JSONDict
+
+
+class SystemPollScheduleResponse(TypedDict, total=False):
+    provider: SystemProvider
+    schedule: JSONDict
+
+
+class SystemPollHistoryResponse(TypedDict, total=False):
+    provider: SystemProvider
+    history: List[JSONDict]
+    limit: int
+
+
+class SystemPollMetricsResponse(TypedDict, total=False):
+    metrics: JSONDict
+
+
+class SystemPollStatusResponse(TypedDict, total=False):
+    enabled: bool
+    running: bool
+    due_count: int
+    metrics: JSONDict
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

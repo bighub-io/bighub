@@ -10,7 +10,20 @@ The adapter follows `MAJOR.MINOR.PATCH`:
 - **MINOR**: backward-compatible features
 - **PATCH**: backward-compatible fixes
 
-## Manual PyPI release (recommended)
+## CI PyPI release (recommended)
+
+Trusted Publishing is handled by:
+
+- `.github/workflows/publish-pypi.yml`
+
+Use one of these tags from `main`:
+
+- `sdk-python-vX.Y.Z` for `bighub`
+- `sdk-openai-vX.Y.Z` for `bighub-openai`
+
+You can also run the workflow manually with `workflow_dispatch`.
+
+## Manual PyPI release (fallback)
 
 ### 1) Go to the adapter package directory
 
@@ -62,7 +75,7 @@ git push origin sdk-openai-vX.Y.Z
 - [ ] `src/bighub_openai/version.py` -> `"X.Y.Z"`
 - [ ] `pyproject.toml` -> `version = "X.Y.Z"`
 - [ ] `pyproject.toml` dependencies aligned:
-  - `bighub>=X.0.0,<(X+1).0.0` (where `X` matches the SDK major line)
+  - `bighub>=0.1.0b1,<0.2.0` for the current beta SDK line
   - `openai>=2.0.0,<3.0.0`
 - [ ] All tests pass (`pytest -q tests`)
 - [ ] Build succeeds:

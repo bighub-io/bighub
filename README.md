@@ -14,7 +14,7 @@ For each proposed IT action (access changes, deployments, rotations, IAM updates
 - Reasons with **DecisionBrain** (risk, confidence, precedent signals when present)
 - Returns **`better_action`** when the backend proposes a distinct alternative—not a cosmetic rephrase of the original
 - Maps the platform’s **`execution_mode`** (and legacy signals) into clear flags: **`can_run`**, **`needs_review`**, **`needs_more_context`**, **`should_not_run`**
-- Supports optional **reviews** (`decision.request_review()`, SDK/MCP approvals) and optional **system context** helpers where implemented
+- Supports optional **reviews** (`decision.request_review()`, SDK/MCP approvals) and first-class **system integrations** for GitHub, Sentry, Datadog, AWS CloudTrail, Terraform, Kubernetes, Argo CD, GitLab, Jenkins, Azure, Prometheus, Grafana, and OpenShift
 
 ---
 
@@ -133,6 +133,20 @@ decision.report_outcome(
 ```
 
 Outcome reporting is **not** required for a first integration. The quickstart stays focused on the decision before execution.
+
+---
+
+## Optional: system evidence
+
+When your org connects systems, the SDK can manage connections and polling so BIGHUB's world state reflects live infrastructure evidence:
+
+```python
+client.systems.update_poll_schedule("prometheus", enabled=True, interval_seconds=300)
+client.systems.poll("prometheus")
+world = client.systems.world_state()
+```
+
+Use `client.systems.poll_metrics()` and `client.systems.poll_history("gitlab")` to inspect poll health and redacted evidence.
 
 ---
 

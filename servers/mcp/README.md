@@ -29,7 +29,7 @@ proposed action → Decision Packet → DecisionBrain → better action → revi
 
 **Tool reference**
 
-- [Better Decision primitives](#better-decision-primitives) · [Core loop](#core-loop) · [Actions](#actions) · [Outcomes](#outcomes) · [Decision cases](#decision-cases) · [Precedents](#precedents) · [Calibration](#calibration) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Learning](#learning) · [Features](#features) · [Runtime ingestion](#runtime-ingestion) · [Operating constraints](#operating-constraints) · [Approvals & kill switch](#approvals--kill-switch) · [Events](#events) · [Webhooks](#webhooks) · [API keys](#api-keys) · [Auth](#auth) · [Utility](#utility)
+- [Better Decision primitives](#better-decision-primitives) · [Core loop](#core-loop) · [Actions](#actions) · [Outcomes](#outcomes) · [Decision cases](#decision-cases) · [Precedents](#precedents) · [Calibration](#calibration) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Learning](#learning) · [Features](#features) · [Runtime ingestion](#runtime-ingestion) · [System integrations](#system-integrations) · [Operating constraints](#operating-constraints) · [Approvals & kill switch](#approvals--kill-switch) · [Events](#events) · [Webhooks](#webhooks) · [API keys](#api-keys) · [Auth](#auth) · [Utility](#utility)
 
 **Reference**
 
@@ -126,12 +126,21 @@ The modern MCP surface is centered on the decision flow:
 | `bighub_run_brain` | Run DecisionBrain on a packet |
 | `bighub_list_reviews` | List pending reviews |
 | `bighub_resolve_review` | Approve, deny, or modify a better action |
-| `bighub_get_system_context` | Fetch context for systems such as Okta or Slack |
+| `bighub_get_system_context` | Fetch context for Okta, Slack, or a configured integration provider |
 | `bighub_get_world_state` | Read operational world state |
 | `bighub_report_outcome` | Optionally report what happened later |
 | `bighub_http_request` | Low-level fallback for endpoints not yet modeled |
 
-Legacy tools such as `bighub_actions_evaluate` remain available for compatibility.
+`bighub_decide` and `bighub_run_brain` return a normalized decision object first:
+`recommended_action`, `mode`, `can_run`, `needs_review`, `needs_more_context`,
+`should_not_run`, `risk`, `confidence`, `expected_regret`, `reason`, `system`,
+`selected_model`, `decision_path`, and counts for verification steps and
+obligations. The original backend payload is still available under `raw` for
+advanced callers. Legacy tools such as `bighub_actions_evaluate` remain
+available for compatibility.
+
+`bighub_build_packet` uses the same canonical JSON SHA-256 hashing strategy as
+the Python SDK, so packet hashes match across SDK and MCP clients.
 
 ---
 
@@ -143,7 +152,7 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 
 # Complete Tool Reference
 
-125 tools organized by domain. The core loop tools are listed first.
+BIGHUB tools are organized by domain. The core loop tools are listed first.
 
 ---
 
@@ -316,6 +325,27 @@ BIGHUB evaluates actions not only in isolation, but also in the context of what 
 | `bighub_ingest_stale` | Stale unreconciled events |
 | `bighub_ingest_stats` | Ingestion statistics |
 | `bighub_ingest_adapters` | List available adapters |
+
+---
+
+## System integrations
+
+| Tool | Description |
+|---|---|
+| `bighub_systems_list_connections` | List configured system integrations |
+| `bighub_systems_get_connection` | Get one provider connection summary |
+| `bighub_systems_test_connection` | Test unsaved provider config |
+| `bighub_systems_save_connection` | Save provider config with optional `display_name` |
+| `bighub_systems_delete_connection` | Delete provider connection |
+| `bighub_systems_poll_now` | Trigger one provider poll now |
+| `bighub_systems_get_poll_schedule` | Get provider poll schedule |
+| `bighub_systems_update_poll_schedule` | Configure provider polling |
+| `bighub_systems_poll_history` | Read redacted provider poll history |
+| `bighub_systems_poll_status` | Scheduler status and due counts |
+| `bighub_systems_poll_metrics` | Provider success/failure, latency, stale schedule and verifier metrics |
+| `bighub_systems_run_due_polls` | Run due polls for the current organization |
+
+Supported providers: `github`, `sentry`, `datadog`, `aws_cloudtrail`, `terraform`, `kubernetes`, `argocd`, `gitlab`, `jenkins`, `azure`, `prometheus`, `grafana`, and `openshift`. Common aliases such as `github-ci`, `cloudtrail`, `terraform-cloud`, `k8s`, `argo-cd`, `gitlab-ci`, and `ocp` are normalized to backend provider IDs.
 
 ---
 

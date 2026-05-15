@@ -383,3 +383,59 @@ def test_sync_contract_aliases_for_actions_retrieval_and_ingest_reconcile() -> N
     assert retrieval["status"] == "ok"
     assert reconcile["status"] == "reconciled"
     client.close()
+
+
+def test_sync_systems_cover_connection_polling_metrics_and_provider_aliases() -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.url.path == "/integrations/gitlab/connection" and request.method == "GET":
+            assert request.url.params.get("org_id") == "42"
+            return httpx.Response(200, json={"configured": True, "provider": "gitlab"})
+        if request.url.path == "/integrations/gitlab/connection/test" and request.method == "POST":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["gitlab_token"] == "gl_token"
+            return httpx.Response(200, json={"ok": True, "provider": "gitlab"})
+        if request.url.path == "/integrations/gitlab/connection" and request.method == "PUT":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["display_name"] == "GitLab CI"
+            return httpx.Response(200, json={"configured": True, "provider": "gitlab"})
+        if request.url.path == "/integrations/gitlab/poll" and request.method == "POST":
+            return httpx.Response(200, json={"ok": True, "provider": "gitlab"})
+        if request.url.path == "/integrations/gitlab/poll/schedule" and request.method == "GET":
+            return httpx.Response(200, json={"schedule": {"enabled": True}})
+        if request.url.path == "/integrations/gitlab/poll/schedule" and request.method == "PUT":
+            payload = json.loads(request.content.decode("utf-8"))
+            assert payload["interval_seconds"] == 120
+            return httpx.Response(200, json={"schedule": payload})
+        if request.url.path == "/integrations/gitlab/poll/history" and request.method == "GET":
+            assert request.url.params.get("limit") == "10"
+            return httpx.Response(200, json={"history": []})
+        if request.url.path == "/integrations/poll/status" and request.method == "GET":
+            return httpx.Response(200, json={"due_count": 0})
+        if request.url.path == "/integrations/poll/metrics" and request.method == "GET":
+            return httpx.Response(200, json={"metrics": {"providers": []}})
+        if request.url.path == "/integrations/poll/run-due" and request.method == "POST":
+            return httpx.Response(200, json={"polled_count": 0})
+        if request.url.path == "/integrations/connections" and request.method == "GET":
+            return httpx.Response(200, json={"connections": []})
+        raise AssertionError(f"Unexpected {request.method} {request.url.path}")
+
+    client = BighubClient(api_key="bhk_test")
+    client._transport._client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    assert client.systems.gitlab.connection(org_id=42)["provider"] == "gitlab"
+    assert client.systems.context("gitlab-ci", org_id=42)["provider"] == "gitlab"
+    assert client.systems.test_connection("gitlab", {"gitlab_token": "gl_token"})["ok"] is True
+    assert client.systems.save_connection("gitlab", {"gitlab_token": "gl_token"}, display_name="GitLab CI")["configured"] is True
+    assert client.systems.poll("gitlab")["ok"] is True
+    assert client.systems.poll_schedule("gitlab")["schedule"]["enabled"] is True
+    assert client.systems.update_poll_schedule("gitlab", interval_seconds=120)["schedule"]["interval_seconds"] == 120
+    assert client.systems.poll_history("gitlab", limit=10)["history"] == []
+    assert client.systems.poll_status()["due_count"] == 0
+    assert client.systems.poll_metrics()["metrics"]["providers"] == []
+    assert client.systems.run_due_polls()["polled_count"] == 0
+    assert client.systems.list_connections()["connections"] == []
+    assert ("POST", "/integrations/poll/run-due") in seen
+    client.close()

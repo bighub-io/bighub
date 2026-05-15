@@ -95,6 +95,31 @@ async def test_async_api_keys_management_paths() -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_systems_polling_paths() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/integrations/prometheus/connection" and request.method == "GET":
+            return httpx.Response(200, json={"configured": True, "provider": "prometheus"})
+        if request.url.path == "/integrations/prometheus/poll" and request.method == "POST":
+            return httpx.Response(200, json={"ok": True, "provider": "prometheus"})
+        if request.url.path == "/integrations/poll/metrics" and request.method == "GET":
+            assert request.url.params.get("org_id") == "42"
+            return httpx.Response(200, json={"metrics": {"providers": [{"provider": "prometheus"}]}})
+        raise AssertionError(f"Unexpected {request.method} {request.url.path}")
+
+    client = AsyncBighubClient(api_key="bhk_test")
+    client._transport._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    connection = await client.systems.prometheus.connection()
+    poll = await client.systems.poll("prometheus")
+    metrics = await client.systems.poll_metrics(org_id=42)
+
+    assert connection["provider"] == "prometheus"
+    assert poll["ok"] is True
+    assert metrics["metrics"]["providers"][0]["provider"] == "prometheus"
+    await client.close()
+
+
+@pytest.mark.asyncio
 async def test_async_auth_events_approvals_paths() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/auth/login" and request.method == "POST":

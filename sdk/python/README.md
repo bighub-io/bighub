@@ -34,7 +34,7 @@ Python 3.9+. Single dependency: `httpx`.
 
 **Platform resources**
 
-- [Batch evaluation](#batch-evaluation) · [Dry run](#dry-run) · [Live sessions](#live-sessions) · [Decision memory](#decision-memory) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Runtime ingestion](#runtime-ingestion) · [Learning controls](#learning-controls) · [Operating constraints](#operating-constraints) · [Events](#events) · [Approvals](#approvals) · [Webhooks](#webhooks)
+- [Batch evaluation](#batch-evaluation) · [Dry run](#dry-run) · [Live sessions](#live-sessions) · [Decision memory](#decision-memory) · [Multi-signal retrieval](#multi-signal-retrieval) · [Insights](#insights) · [Simulations](#simulations) · [Runtime ingestion](#runtime-ingestion) · [System integrations](#system-integrations) · [Learning controls](#learning-controls) · [Operating constraints](#operating-constraints) · [Events](#events) · [Approvals](#approvals) · [Webhooks](#webhooks)
 
 **Reference**
 
@@ -119,6 +119,22 @@ If your agent only reads data or performs idempotent lookups, you probably do no
 | `reason` | Convenience read: top-level evaluate **`reason`** when present, otherwise brain **`review_reason`** / **`reasoning_summary`**, otherwise **`model_selection_reason`** |
 
 Legacy `BighubClient` and `client.actions.evaluate(...)` remain available for existing integrations.
+
+For agents and product code that want one polished object instead of the full
+normalization layer, use `decision.brief()`:
+
+```python
+brief = decision.brief()
+
+if brief.can_run:
+    run(brief.recommended_action)
+elif brief.needs_review:
+    open_review(brief.to_dict())
+```
+
+`DecisionBrief` keeps the stable fields most workflows need: recommended action,
+mode, review/context/blocking flags, risk, confidence, regret, reason, system,
+model/path, world-state usage, verification step count, obligation count, and warnings.
 
 The SDK normalizes real `/actions/evaluate` responses. It does not invent model selection fields: if the backend does not return `selected_model`, `selected_decision_path`, or `model_selection.reason`, the corresponding SDK attributes are `None`. If a backend `decision_packet` has no `packet_sha256`, the SDK computes a stable local hash and marks it with `packet.packet_sha256_is_local=True`.
 
@@ -628,6 +644,41 @@ stats = client.ingest.stats()
 
 ---
 
+## System integrations
+
+Manage the systems BIGHUB can poll for operational evidence before decisions:
+
+```python
+client.systems.save_connection(
+    "gitlab",
+    {
+        "base_url": "https://gitlab.com",
+        "gitlab_token": "glpat_...",
+        "project_id": "123",
+    },
+    display_name="GitLab production",
+)
+
+client.systems.update_poll_schedule("gitlab", enabled=True, interval_seconds=300)
+poll = client.systems.poll("gitlab")
+metrics = client.systems.poll_metrics()
+world = client.systems.world_state()
+```
+
+First-class providers: `github`, `sentry`, `datadog`, `aws_cloudtrail`, `terraform`, `kubernetes`, `argocd`, `gitlab`, `jenkins`, `azure`, `prometheus`, `grafana`, and `openshift`.
+
+Each provider also has a convenience object:
+
+```python
+client.systems.prometheus.test({"base_url": "https://prom.example.com", "token": "..."})
+history = client.systems.kubernetes.history(limit=25)
+run_due = client.systems.run_due_polls()
+```
+
+Poll snapshots and histories returned by the backend are redacted before persistence and exposure. Polls feed `VerifierResult` rows that appear in `client.systems.world_state()`, so DecisionBrain can see stale/healthy/degraded infrastructure state without callers manually injecting every signal.
+
+---
+
 ## Learning controls
 
 Trigger recomputation of learning artifacts when needed:
@@ -941,6 +992,24 @@ Every method listed below is available on both `BighubClient` (sync) and `AsyncB
 | `versions(rule_id, limit)` | Constraint version history |
 | `apply_patch(rule_id, patch, preview, reason, ...)` | Apply a JSON Patch |
 | `purge_idempotency(only_expired, older_than_hours, limit)` | Admin: purge idempotency keys |
+
+### `client.systems`
+
+| Method | Description |
+|---|---|
+| `list_connections(org_id)` | List configured system integrations |
+| `connection(provider, org_id)` | Get one provider connection summary |
+| `test_connection(provider, config, org_id)` | Test unsaved provider config |
+| `save_connection(provider, config, display_name, org_id)` | Save provider config |
+| `delete_connection(provider, org_id)` | Delete provider connection |
+| `poll(provider, org_id)` | Trigger one provider poll now |
+| `poll_schedule(provider, org_id)` | Get provider poll schedule |
+| `update_poll_schedule(provider, enabled, interval_seconds, max_backoff_seconds, org_id)` | Configure provider polling |
+| `poll_history(provider, limit, org_id)` | Read redacted provider poll history |
+| `poll_status(org_id)` | Scheduler status and due counts |
+| `poll_metrics(org_id)` | Provider success/failure, latency, stale schedule and verifier-result metrics |
+| `run_due_polls(org_id)` | Run due polls for the current organization |
+| `world_state(limit, freshness_minutes, in_flight_minutes)` | Operational world state consumed by decisions |
 
 ### `client.events`
 

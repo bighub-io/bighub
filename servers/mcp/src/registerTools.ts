@@ -5,6 +5,40 @@ import { z } from "zod";
 import { BighubHttpClient } from "./httpClient.js";
 
 const JsonObjectSchema = z.record(z.string(), z.unknown());
+const SystemProviderSchema = z
+  .string()
+  .describe(
+    "Provider name or alias: github, github-ci, sentry, datadog, aws_cloudtrail, cloudtrail, terraform, k8s, kubernetes, argocd, argo-cd, gitlab, gitlab-ci, jenkins, azure, prometheus, grafana, openshift, ocp",
+  );
+const SYSTEM_PROVIDER_ALIASES: Record<string, string> = {
+  github: "github",
+  "github-ci": "github",
+  github_ci: "github",
+  sentry: "sentry",
+  datadog: "datadog",
+  "aws-cloudtrail": "aws_cloudtrail",
+  aws_cloudtrail: "aws_cloudtrail",
+  cloudtrail: "aws_cloudtrail",
+  terraform: "terraform",
+  "terraform-cloud": "terraform",
+  terraform_cloud: "terraform",
+  tfc: "terraform",
+  tfe: "terraform",
+  kubernetes: "kubernetes",
+  k8s: "kubernetes",
+  argocd: "argocd",
+  "argo-cd": "argocd",
+  argo_cd: "argocd",
+  gitlab: "gitlab",
+  "gitlab-ci": "gitlab",
+  gitlab_ci: "gitlab",
+  jenkins: "jenkins",
+  azure: "azure",
+  prometheus: "prometheus",
+  grafana: "grafana",
+  openshift: "openshift",
+  ocp: "openshift",
+};
 const JsonPatchSchema = z.union([
   z.array(JsonObjectSchema),
   z.object({
@@ -20,12 +54,130 @@ function toResult(data: unknown) {
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
 function cleanObject(input: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }
 
+function normalizeSystemProvider(provider: unknown): string {
+  const canonical = SYSTEM_PROVIDER_ALIASES[String(provider || "").trim().toLowerCase()];
+  if (!canonical) {
+    throw new Error(`Unsupported BIGHUB system provider: ${String(provider)}`);
+  }
+  return canonical;
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalize(item));
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalize(item)]),
+    );
+  }
+  return value;
+}
+
 function packetHash(input: Record<string, unknown>): string {
-  return createHash("sha256").update(JSON.stringify(input, Object.keys(input).sort())).digest("hex");
+  return createHash("sha256").update(JSON.stringify(canonicalize(input))).digest("hex");
+}
+
+function optionalNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") {
+      continue;
+    }
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function nested(source: Record<string, unknown>, ...path: string[]): unknown {
+  let current: unknown = source;
+  for (const key of path) {
+    if (typeof current !== "object" || current === null || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+function normalizeDecisionPayload(rawInput: unknown, proposedAction?: string): Record<string, unknown> {
+  const raw = asRecord(rawInput);
+  const packet = asRecord(raw.decision_packet);
+  const brain = asRecord(raw.decision_brain);
+  const intelligence = asRecord(raw.decision_intelligence);
+  const modelSelection = asRecord(raw.model_selection);
+  const recommendation = String(brain.recommendation || raw.recommendation || raw.result || "");
+  const result = String(raw.result || "").toLowerCase();
+  const explicitMode = String(raw.execution_mode || raw.mode || "").toLowerCase();
+  const needsReview =
+    raw.needs_review === true ||
+    raw.human_review === true ||
+    raw.requires_approval === true ||
+    result === "requires_approval" ||
+    recommendation === "review_recommended";
+  const needsMoreContext = raw.needs_more_context === true || raw.request_type === "needs_more_context";
+  const shouldNotRun = raw.should_not_run === true || recommendation === "do_not_proceed" || result === "blocked" || raw.allowed === false;
+  const mode = raw.dry_run === true
+    ? "dry_run"
+    : needsMoreContext
+      ? "needs_context"
+      : needsReview
+        ? "review"
+        : shouldNotRun
+          ? "blocked"
+          : explicitMode === "limited" || recommendation === "proceed_with_caution"
+            ? "constrained"
+            : raw.allowed === true || recommendation === "proceed"
+              ? "autonomous"
+              : explicitMode || null;
+  const canRun = (mode === "autonomous" || mode === "constrained") && !needsReview && !shouldNotRun;
+  const alternatives = Array.isArray(intelligence.alternatives) ? intelligence.alternatives : [];
+  const firstAlternative = asRecord(alternatives[0]);
+  const betterAction = raw.better_action || raw.recommended_action || firstAlternative.action || proposedAction || raw.action || null;
+
+  return cleanObject({
+    request_id: raw.request_id || raw.validation_id || raw.id,
+    proposed_action: proposedAction || raw.proposed_action || raw.action,
+    better_action: betterAction,
+    recommended_action: betterAction,
+    recommendation: recommendation || null,
+    mode,
+    can_run: canRun,
+    needs_review: needsReview,
+    needs_more_context: needsMoreContext,
+    should_not_run: shouldNotRun,
+    risk: optionalNumber(raw.risk, raw.risk_score, nested(raw, "decision_runtime_spine", "decision", "risk_score")),
+    confidence: optionalNumber(raw.confidence, nested(raw, "intelligence", "confidence", "score"), brain.confidence),
+    expected_regret: optionalNumber(raw.expected_regret, intelligence.projected_regret, brain.expected_regret),
+    reason: raw.reason || brain.reasoning_summary || intelligence.rationale || raw.blocked_by,
+    system: packet.system || raw.domain || nested(packet, "context", "system"),
+    selected_model: modelSelection.selected_model || raw.selected_model || raw.model_used,
+    decision_path: modelSelection.selected_decision_path || raw.selected_decision_path || raw.decision_path,
+    world_state_used: Boolean(brain.world_state_used || raw.operational_world_snapshot || raw.world_state),
+    verification_steps: Array.isArray(packet.verification_plan) ? packet.verification_plan.length : undefined,
+    obligations: Array.isArray(packet.obligations) ? packet.obligations.length : undefined,
+    warnings: Array.isArray(raw.warnings) ? raw.warnings : undefined,
+    allowed: raw.allowed,
+    result: raw.result,
+    requires_approval: raw.requires_approval,
+    decision_packet: packet,
+    decision_brain: brain,
+    model_selection: modelSelection,
+    raw,
+  });
 }
 
 export function registerBighubTools(server: McpServer, client: BighubHttpClient): void {
@@ -35,7 +187,7 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       description: "Low-level passthrough for any BIGHUB API endpoint.",
       outputSchema: AnyOutputSchema,
       inputSchema: {
-        method: z.enum(["GET", "POST", "PATCH", "DELETE"]),
+        method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
         path: z.string().regex(/^\/.*/, "Path must start with '/'"),
         query: JsonObjectSchema.optional(),
         body: z.union([JsonObjectSchema, z.array(JsonObjectSchema)]).optional(),
@@ -76,13 +228,14 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     },
     async ({ action, context, objective, model_selection, actor, domain, target, value, dry_run, idempotency_key }) => {
       const mergedContext = { ...(context || {}), objective, model_selection };
+      const response = await client.request({
+        method: "POST",
+        path: "/actions/evaluate",
+        body: cleanObject({ action, actor, domain, target, value, dry_run, context: mergedContext }),
+        idempotencyKey: idempotency_key,
+      });
       return toResult(
-        await client.request({
-          method: "POST",
-          path: "/actions/evaluate",
-          body: cleanObject({ action, actor, domain, target, value, dry_run, context: mergedContext }),
-          idempotencyKey: idempotency_key,
-        }),
+        normalizeDecisionPayload(response, action),
       );
     },
   );
@@ -102,14 +255,21 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     },
     async ({ action, context, objective, system, environment }) => {
       const packet = cleanObject({
-        intent: objective,
+        intent: objective || "better_decision",
         action_type: "it_action",
         system: system || (context || {}).system,
         environment: environment || (context || {}).environment,
         context: context || {},
         candidate_actions: [action],
         constraints: (context || {}).constraints || [],
+        system_state: {},
+        rejected_actions: [],
         risk_factors: (context || {}).risk_factors || [],
+        precedents: [],
+        expected_outcomes: [],
+        verification_plan: [],
+        obligations: [],
+        learning_hooks: [],
       });
       return toResult({ ...packet, packet_sha256: packetHash(packet) });
     },
@@ -129,19 +289,20 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
     async ({ packet, actor, idempotency_key }) => {
       const candidateActions = Array.isArray(packet.candidate_actions) ? packet.candidate_actions : [];
       const action = String(candidateActions[0] || packet.action || "proposed_it_action");
-      return toResult(
-        await client.request({
-          method: "POST",
-          path: "/actions/evaluate",
-          body: cleanObject({
-            action,
-            actor,
-            domain: packet.system,
-            context: { ...(typeof packet.context === "object" && packet.context ? packet.context : {}), decision_packet: packet },
-            dry_run: true,
-          }),
-          idempotencyKey: idempotency_key,
+      const response = await client.request({
+        method: "POST",
+        path: "/actions/evaluate",
+        body: cleanObject({
+          action,
+          actor,
+          domain: packet.system,
+          context: { ...(typeof packet.context === "object" && packet.context ? packet.context : {}), decision_packet: packet },
+          dry_run: true,
         }),
+        idempotencyKey: idempotency_key,
+      });
+      return toResult(
+        normalizeDecisionPayload(response, action),
       );
     },
   );
@@ -216,17 +377,189 @@ export function registerBighubTools(server: McpServer, client: BighubHttpClient)
       },
     },
     async ({ system, user_login }) => {
-      if (system === "okta" && user_login) {
+      const normalizedSystem = String(system || "").trim().toLowerCase();
+      if (normalizedSystem === "okta" && user_login) {
         return toResult(await client.request({ method: "GET", path: `/integrations/okta/user/${encodeURIComponent(user_login)}` }));
       }
-      if (system === "okta") {
+      if (normalizedSystem === "okta") {
         return toResult(await client.request({ method: "GET", path: "/integrations/okta/connection" }));
       }
-      if (system === "slack") {
+      if (normalizedSystem === "slack") {
         return toResult(await client.request({ method: "GET", path: "/integrations/slack/connection" }));
       }
-      return toResult({ system, context: "No first-class connector context yet. Pass system details in bighub_decide.context." });
+      const provider = normalizeSystemProvider(normalizedSystem);
+      return toResult(await client.request({ method: "GET", path: `/integrations/${provider}/connection` }));
     },
+  );
+
+  server.registerTool(
+    "bighub_systems_list_connections",
+    {
+      description: "List configured BIGHUB system integrations for the current organization.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { org_id: z.number().int().optional() },
+    },
+    async ({ org_id }) =>
+      toResult(await client.request({ method: "GET", path: "/integrations/connections", query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_get_connection",
+    {
+      description: "Get a system integration connection summary, including scope hints and last error.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { provider: SystemProviderSchema, org_id: z.number().int().optional() },
+    },
+    async ({ provider, org_id }) =>
+      toResult(await client.request({ method: "GET", path: `/integrations/${normalizeSystemProvider(provider)}/connection`, query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_test_connection",
+    {
+      description: "Test a system integration config before saving it. Config may contain provider credentials.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { provider: SystemProviderSchema, config: JsonObjectSchema, org_id: z.number().int().optional() },
+    },
+    async ({ provider, config, org_id }) =>
+      toResult(
+        await client.request({
+          method: "POST",
+          path: `/integrations/${normalizeSystemProvider(provider)}/connection/test`,
+          query: cleanObject({ org_id }),
+          body: config,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_systems_save_connection",
+    {
+      description: "Save a system integration config. BIGHUB stores secrets encrypted and returns a redacted summary.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        provider: SystemProviderSchema,
+        config: JsonObjectSchema,
+        display_name: z.string().optional(),
+        org_id: z.number().int().optional(),
+      },
+    },
+    async ({ provider, config, display_name, org_id }) =>
+      toResult(
+        await client.request({
+          method: "PUT",
+          path: `/integrations/${normalizeSystemProvider(provider)}/connection`,
+          query: cleanObject({ org_id }),
+          body: cleanObject({ ...(config as Record<string, unknown>), display_name }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_systems_delete_connection",
+    {
+      description: "Delete a system integration connection for the current organization.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { provider: SystemProviderSchema, org_id: z.number().int().optional() },
+    },
+    async ({ provider, org_id }) =>
+      toResult(await client.request({ method: "DELETE", path: `/integrations/${normalizeSystemProvider(provider)}/connection`, query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_poll_now",
+    {
+      description: "Poll a configured system now and return the redacted evidence snapshot plus verifier result.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { provider: SystemProviderSchema, org_id: z.number().int().optional() },
+    },
+    async ({ provider, org_id }) =>
+      toResult(await client.request({ method: "POST", path: `/integrations/${normalizeSystemProvider(provider)}/poll`, query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_get_poll_schedule",
+    {
+      description: "Get the polling schedule for a configured system integration.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { provider: SystemProviderSchema, org_id: z.number().int().optional() },
+    },
+    async ({ provider, org_id }) =>
+      toResult(await client.request({ method: "GET", path: `/integrations/${normalizeSystemProvider(provider)}/poll/schedule`, query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_update_poll_schedule",
+    {
+      description: "Enable/disable or change the polling interval for a system integration.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: {
+        provider: SystemProviderSchema,
+        enabled: z.boolean().default(true),
+        interval_seconds: z.number().int().min(30).max(86400).default(300),
+        max_backoff_seconds: z.number().int().min(30).max(86400).default(3600),
+        org_id: z.number().int().optional(),
+      },
+    },
+    async ({ provider, enabled, interval_seconds, max_backoff_seconds, org_id }) =>
+      toResult(
+        await client.request({
+          method: "PUT",
+          path: `/integrations/${normalizeSystemProvider(provider)}/poll/schedule`,
+          query: cleanObject({ org_id }),
+          body: { enabled, interval_seconds, max_backoff_seconds },
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_systems_poll_history",
+    {
+      description: "Read redacted poll history for a system integration.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { provider: SystemProviderSchema, limit: z.number().int().min(1).max(200).default(50), org_id: z.number().int().optional() },
+    },
+    async ({ provider, limit, org_id }) =>
+      toResult(
+        await client.request({
+          method: "GET",
+          path: `/integrations/${normalizeSystemProvider(provider)}/poll/history`,
+          query: cleanObject({ limit, org_id }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "bighub_systems_poll_status",
+    {
+      description: "Read integration polling scheduler status and org-scoped due count.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { org_id: z.number().int().optional() },
+    },
+    async ({ org_id }) =>
+      toResult(await client.request({ method: "GET", path: "/integrations/poll/status", query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_poll_metrics",
+    {
+      description: "Read provider poll success/failure, latency, stale schedule and verifier-result metrics.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { org_id: z.number().int().optional() },
+    },
+    async ({ org_id }) =>
+      toResult(await client.request({ method: "GET", path: "/integrations/poll/metrics", query: cleanObject({ org_id }) })),
+  );
+
+  server.registerTool(
+    "bighub_systems_run_due_polls",
+    {
+      description: "Run due integration polls for the current organization only.",
+      outputSchema: AnyOutputSchema,
+      inputSchema: { org_id: z.number().int().optional() },
+    },
+    async ({ org_id }) =>
+      toResult(await client.request({ method: "POST", path: "/integrations/poll/run-due", query: cleanObject({ org_id }) })),
   );
 
   server.registerTool(

@@ -1,3 +1,3 @@
-from .client import AsyncSystemsAPI, SystemsAPI
+from .client import AsyncSystemsAPI, PROVIDER_ALIASES, SYSTEM_PROVIDERS, SystemsAPI
 
-__all__ = ["SystemsAPI", "AsyncSystemsAPI"]
+__all__ = ["SYSTEM_PROVIDERS", "PROVIDER_ALIASES", "SystemsAPI", "AsyncSystemsAPI"]

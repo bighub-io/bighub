@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b2] - 2026-05-15
+
+### Changed
+
+- Refined the PyPI README to position `bighub` as the Better Decision SDK for risky IT agent actions and CI/CD workflows.
+- Shortened package landing-page content, removed stale beta plan details, and aligned examples with the current decision contract.
+
 ## [0.1.0b1] - 2026-05-15
 
 ### Added

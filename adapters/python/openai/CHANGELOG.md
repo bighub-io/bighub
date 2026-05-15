@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b2] - 2026-05-15
+
+### Changed
+
+- Refined the PyPI README to position `bighub-openai` as the Better Decision layer for risky OpenAI tool calls in IT workflows.
+- Shortened the package landing page, removed legacy refund/payment framing, and aligned examples with the current decision surface.
+
 ## [0.1.0b1] - 2026-05-15
 
 ### Added

@@ -59,7 +59,7 @@ For any release `X.Y.Z`:
 
 ## Git tag convention
 
-- `sdk-python-v0.1.0b1`
+- `sdk-python-v0.1.0b2`
 
 ## Branch policy
 

@@ -60,6 +60,13 @@ elif decision.can_run:
     action_to_run = decision.better_action or decision.proposed_action
     run(action_to_run)
 
+for factor in decision.salient_factors:
+    print("Important factor:", factor.get("factor"), factor.get("severity"))
+
+space = decision.responsible_action_space or {}
+print("Available actions:", space.get("available", []))
+print("Constrained actions:", space.get("constrained", []))
+
 bighub.close()
 ```
 
@@ -98,17 +105,24 @@ High-value fields most workflows care about:
 - `packet`: the `DecisionPacket` used for the decision
 - `brain`: the `DecisionBrainResult` with reasoning summary, confidence, expected regret when provided, and related signals
 - `selected_model`: present only when the backend actually selected one
+- `responsible_action_space`: the responsible action space for the current situation, grouped into `available`, `constrained`, `forbidden`, and `information_gathering` actions
+- `salient_factors`: the most important decision-time factors BIGHUB identified, such as weak verifier coverage, unavailable rollback, open obligations, active incidents, irreversibility, or high blast radius
 
 For a smaller stable surface, use `decision.brief()`:
 
 ```python
 brief = decision.brief()
 
+print(brief.salient_factors)
+print(brief.action_space_counts)
+
 if brief.can_run:
     run(brief.recommended_action)
 elif brief.needs_review:
     print("Review required:", brief.reason)
 ```
+
+`decision.brief()` keeps this compact: it exposes salient factor names and action-space counts, while the full `Decision` object keeps the detailed `responsible_action_space` and `salient_factors` payloads.
 
 ---
 
@@ -138,6 +152,50 @@ decision.report_outcome(
 ```
 
 Outcome reporting is optional. The primary integration wedge is still the decision before execution.
+
+After outcomes are reported, you can inspect learning impact:
+
+```python
+from bighub import BighubClient
+
+
+client = BighubClient(api_key="your_api_key")
+
+impact = client.learning.impact()
+print(impact.get("future_decisions_verdict_changed"))
+print(impact.get("avg_regret_reduction"))
+
+metrics = client.learning.disagreement_metrics()
+print(metrics.get("avg_regret_reduction"))
+
+client.close()
+```
+
+---
+
+## Learning impact
+
+BIGHUB can also expose post-outcome learning metrics when outcomes and disagreements are available.
+
+```python
+from bighub import BighubClient
+
+
+client = BighubClient(api_key="your_api_key")
+
+impact = client.learning.impact()
+print(impact.get("future_decisions_learning_influenced"))
+print(impact.get("future_decisions_verdict_changed"))
+print(impact.get("avg_regret_reduction"))
+
+disagreements = client.learning.disagreement_metrics()
+print(disagreements.get("bighub_regret_reduction_rate"))
+print(disagreements.get("avg_regret_reduction"))
+
+client.close()
+```
+
+These metrics are post-outcome signals. They are not required for first integration and are separate from the pre-execution decision returned by `bighub.decide(...)`.
 
 ---
 

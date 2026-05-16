@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from ..types import JSONDict
+from ..types import DisagreementMetricsResponse, JSONDict, LearningImpactReportResponse
 
 _Sync = Any
 _Async = Any
@@ -60,6 +60,24 @@ class LearningAPI:
             method="POST", path="/ops/learning/backfill", json_body=body
         )
 
+    def impact(
+        self,
+        *,
+        source_type: Optional[str] = None,
+        limit_examples: int = 10,
+    ) -> LearningImpactReportResponse:
+        params: Dict[str, Any] = {"limit_examples": limit_examples}
+        if source_type is not None:
+            params["source_type"] = source_type
+        return self._transport.request(
+            method="GET", path="/consequence-graph/learning-impact", params=params
+        )
+
+    def disagreement_metrics(self) -> DisagreementMetricsResponse:
+        return self._transport.request(
+            method="GET", path="/consequence-graph/disagreements/metrics"
+        )
+
 
 class AsyncLearningAPI:
     def __init__(self, transport: _Async) -> None:
@@ -113,4 +131,22 @@ class AsyncLearningAPI:
         }
         return await self._transport.request(
             method="POST", path="/ops/learning/backfill", json_body=body
+        )
+
+    async def impact(
+        self,
+        *,
+        source_type: Optional[str] = None,
+        limit_examples: int = 10,
+    ) -> LearningImpactReportResponse:
+        params: Dict[str, Any] = {"limit_examples": limit_examples}
+        if source_type is not None:
+            params["source_type"] = source_type
+        return await self._transport.request(
+            method="GET", path="/consequence-graph/learning-impact", params=params
+        )
+
+    async def disagreement_metrics(self) -> DisagreementMetricsResponse:
+        return await self._transport.request(
+            method="GET", path="/consequence-graph/disagreements/metrics"
         )

@@ -22,6 +22,34 @@ async def test_async_client_submit() -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_learning_impact_and_disagreement_metrics_paths() -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.url.path == "/consequence-graph/learning-impact":
+            assert request.url.params.get("limit_examples") == "2"
+            return httpx.Response(200, json={"observed_ctg_edges": 5, "avg_regret_reduction": 0.18})
+        if request.url.path == "/consequence-graph/disagreements/metrics":
+            return httpx.Response(200, json={"total_records": 2, "avg_regret_reduction": 0.18})
+        raise AssertionError(f"Unexpected {request.method} {request.url.path}")
+
+    client = AsyncBighubClient(api_key="bhk_test")
+    client._transport._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    impact = await client.learning.impact(limit_examples=2)
+    metrics = await client.learning.disagreement_metrics()
+
+    assert impact["avg_regret_reduction"] == 0.18
+    assert metrics["total_records"] == 2
+    assert seen == [
+        ("GET", "/consequence-graph/learning-impact"),
+        ("GET", "/consequence-graph/disagreements/metrics"),
+    ]
+    await client.close()
+
+
+@pytest.mark.asyncio
 async def test_async_constraints_validate_dry_run_and_kill_switch() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/rules/validate/dry-run":

@@ -1503,6 +1503,15 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
                 "proposed_action": kwargs["action"],
                 "execution_mode": "autonomous",
                 "can_run": True,
+                "responsible_action_space": {
+                    "available": [{"action": kwargs["action"], "reason": "Executable"}],
+                    "constrained": [],
+                    "forbidden": [],
+                    "information_gathering": [],
+                },
+                "salient_factors": [
+                    {"factor": "weak_verifier_coverage", "severity": "warn", "reason": "No verifier attached."}
+                ],
             }
 
     fake_bighub = FakeBighubClient()
@@ -1518,6 +1527,8 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
     response = agent.run(messages=[{"role": "user", "content": "refund"}], model="gpt-4.1")
 
     assert response["execution"]["last"]["decision"]["request_id"] == "req_modern_1"
+    assert response["execution"]["last"]["responsible_action_space"]["available"][0]["action"] == "refund_payment"
+    assert response["execution"]["last"]["salient_factors"][0]["factor"] == "weak_verifier_coverage"
     assert fake_bighub.decisions.calls[0]["context"]["objective"] == "better_decision"
 
 

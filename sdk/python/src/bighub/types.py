@@ -198,6 +198,78 @@ class AdvisoryIntelligenceDict(TypedDict, total=False):
     simulation_summary: JSONDict
 
 
+class ResponsibleActionDict(TypedDict, total=False):
+    action: str
+    reason: str
+    execution_mode: Optional[str]
+    evidence: JSONDict
+
+
+class ResponsibleActionSpaceDict(TypedDict, total=False):
+    available: List[ResponsibleActionDict]
+    constrained: List[ResponsibleActionDict]
+    forbidden: List[ResponsibleActionDict]
+    information_gathering: List[ResponsibleActionDict]
+
+
+class SalientFactorDict(TypedDict, total=False):
+    factor: str
+    severity: str
+    reason: str
+    evidence: Any
+
+
+class DisagreementMetricsResponse(TypedDict, total=False):
+    org_id: str
+    total_records: int
+    observed_records: int
+    unknown_winner: int
+    by_winner: JSONDict
+    by_disagreement_type: JSONDict
+    llm_over_approval_count: int
+    llm_over_approval_rate: float
+    bighub_regret_reduction_count: int
+    bighub_regret_reduction_rate: float
+    human_override_success_count: int
+    human_override_success_rate: float
+    human_overblock_count: int
+    human_overblock_rate: float
+    bighub_false_positive_count: int
+    bighub_false_positive_rate: float
+    bighub_false_negative_count: int
+    bighub_false_negative_rate: float
+    avg_regret_when_bighub_changed_decision: Optional[float]
+    avg_regret_when_baseline_path_followed: Optional[float]
+    avg_regret_reduction: Optional[float]
+    top_llm_over_approval_shapes: List[JSONDict]
+    top_bighub_regret_reduction_shapes: List[JSONDict]
+
+
+class LearningImpactReportResponse(TypedDict, total=False):
+    org_id: str
+    observed_ctg_edges: int
+    transitions_with_learning_tasks: int
+    transitions_with_candidates: int
+    transitions_with_breakdown_findings: int
+    transitions_with_falsification_experiments: int
+    transitions_with_promotions: int
+    transitions_with_active_learning_recommendations: int
+    future_decisions_created_after_observed_edges: int
+    future_decisions_learning_influenced: int
+    future_decisions_verdict_changed: int
+    disagreements_observed: int
+    disagreements_by_winner: JSONDict
+    disagreements_by_type: JSONDict
+    bighub_won_disagreements: int
+    human_won_disagreements: int
+    llm_won_disagreements: int
+    unknown_disagreement_winner: int
+    avg_regret_when_bighub_changed_decision: Optional[float]
+    avg_regret_when_baseline_path_followed: Optional[float]
+    avg_regret_reduction: Optional[float]
+    examples: List[JSONDict]
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ACTIONS — EVALUATE RESPONSE
 #
@@ -253,6 +325,10 @@ class ActionEvaluateResponse(TypedDict, total=False):
 
     # ── Decision Packet v1 ───────────────────────────────────────────
     decision_packet: JSONDict
+
+    # ── Responsible decision surface ─────────────────────────────────
+    responsible_action_space: ResponsibleActionSpaceDict
+    salient_factors: List[SalientFactorDict]
 
 
 ActionSubmitResponse = ActionEvaluateResponse

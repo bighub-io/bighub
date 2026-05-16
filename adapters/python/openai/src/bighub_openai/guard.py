@@ -74,6 +74,8 @@ class ToolResult:
     confidence_zone: Optional[str] = None
     regret_band: Optional[str] = None
     decision_packet: Optional[Dict[str, Any]] = None
+    responsible_action_space: Optional[Dict[str, Any]] = None
+    salient_factors: Optional[List[Dict[str, Any]]] = None
 
 
 GuardedToolResult = ToolResult
@@ -99,6 +101,8 @@ class ToolExecutionEvent:
     enforcement_mode: Optional[str] = None
     trajectory_health: Optional[str] = None
     decision_packet: Optional[Dict[str, Any]] = None
+    responsible_action_space: Optional[Dict[str, Any]] = None
+    salient_factors: Optional[List[Dict[str, Any]]] = None
 
 
 class BighubOpenAI:
@@ -821,6 +825,10 @@ class BighubOpenAI:
         except (TypeError, ValueError):
             result.risk_score = None
         result.enforcement_mode = decision.get("enforcement_mode")
+        if isinstance(decision.get("responsible_action_space"), dict):
+            result.responsible_action_space = decision["responsible_action_space"]
+        if isinstance(decision.get("salient_factors"), list):
+            result.salient_factors = [item for item in decision["salient_factors"] if isinstance(item, dict)]
         advisory = decision.get("decision_intelligence") or {}
         fallback = decision.get("intelligence") or {}
         result.trajectory_health = advisory.get("trajectory_health") or fallback.get("trajectory_health")
@@ -911,6 +919,8 @@ class BighubOpenAI:
             enforcement_mode=result.enforcement_mode,
             trajectory_health=result.trajectory_health,
             decision_packet=result.decision_packet,
+            responsible_action_space=result.responsible_action_space,
+            salient_factors=result.salient_factors,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
@@ -1838,6 +1848,8 @@ class AsyncBighubOpenAI(BighubOpenAI):
             enforcement_mode=result.enforcement_mode,
             trajectory_health=result.trajectory_health,
             decision_packet=result.decision_packet,
+            responsible_action_space=result.responsible_action_space,
+            salient_factors=result.salient_factors,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 

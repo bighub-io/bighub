@@ -96,5 +96,49 @@
     "native_possible": null,
     "packet_required": true,
     "review_required": true
-  }
+  },
+  "responsible_action_space": {
+    "available": [],
+    "constrained": [
+      {
+        "action": "Grant temporary Okta admin access to users 1-9 for 48h",
+        "reason": "Proposed action may proceed only after review/approval.",
+        "execution_mode": "review"
+      },
+      {
+        "action": "Grant admin access only to users 1-3 for 4h, require MFA, and create expiry review.",
+        "reason": "Safer alternative derived from decision intelligence."
+      }
+    ],
+    "forbidden": [],
+    "information_gathering": [
+      {
+        "action": "request_human_review",
+        "reason": "Human review is required before mutation."
+      },
+      {
+        "action": "verify grant",
+        "reason": "Verification step can create evidence before/after action."
+      }
+    ]
+  },
+  "salient_factors": [
+    {
+      "factor": "open_obligations",
+      "severity": "warn",
+      "reason": "Open obligations constrain this decision.",
+      "evidence": {"count": 1}
+    },
+    {
+      "factor": "weak_verifier_coverage",
+      "severity": "caution",
+      "reason": "limited_evidence",
+      "evidence": {"code": "limited_evidence"}
+    },
+    {
+      "factor": "high_blast_radius",
+      "severity": "warn",
+      "reason": "Risk/blast-radius signals are elevated."
+    }
+  ]
 }

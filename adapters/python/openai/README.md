@@ -37,7 +37,7 @@ Requires Python 3.9+.
 
 Dependencies:
 
-- `bighub>=0.1.0b2,<0.2.0`
+- `bighub>=0.1.0b3,<0.2.0`
 - `openai>=2.0.0,<3.0.0`
 
 ---
@@ -72,6 +72,10 @@ print(last["status"])                   # executed, blocked, approval_required, 
 print(last["decision"].get("mode"))    # review, autonomous, constrained, blocked, needs_context
 print(last["decision"].get("risk"))
 print(last["decision"].get("reason"))
+
+decision = last["decision"]
+print(decision.get("salient_factors"))
+print(decision.get("responsible_action_space"))
 ```
 
 `agent.action(...)` auto-generates a strict JSON schema from the Python function signature and attaches system context. `GuardedOpenAI` remains available as a compatibility alias.
@@ -129,6 +133,19 @@ Representative shape from `run()`:
         "should_not_run": False,
         "risk": 0.78,
         "reason": "Production admin access for 48h is broader than necessary.",
+        "responsible_action_space": {
+          "available": [],
+          "constrained": [],
+          "forbidden": [],
+          "information_gathering": []
+        },
+        "salient_factors": [
+          {
+            "factor": "high_blast_radius",
+            "severity": "warning",
+            "reason": "Production admin access has broad impact."
+          }
+        ],
         "decision_packet": {...},
         "decision_brain": {...}
       },
@@ -154,8 +171,12 @@ The adapter returns the full raw BIGHUB decision under `last["decision"]`. When 
 | `should_not_run` | Whether BIGHUB recommends not executing |
 | `risk` | Top-level risk score when provided |
 | `reason` | Human-readable reason when provided |
+| `responsible_action_space` | Responsible action options grouped as `available`, `constrained`, `forbidden`, and `information_gathering` when returned by BIGHUB |
+| `salient_factors` | Decision-time factors BIGHUB identified as important for this tool call, such as high blast radius, weak verifier coverage, unavailable rollback, active incident, or open obligations |
 | `decision_packet` | Structured context used for the decision |
 | `decision_brain` | DecisionBrain reasoning summary and related signals |
+
+`responsible_action_space` and `salient_factors` are explanatory decision signals. They do not override runtime gating. Execution is still controlled by `mode`, `can_run`, `needs_review`, `should_not_run`, `recommendation`, `allowed`, and `requires_approval`.
 
 ### Execution statuses
 

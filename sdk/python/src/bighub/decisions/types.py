@@ -89,6 +89,8 @@ class DecisionBrief:
     world_state_used: Optional[bool] = None
     verification_steps: int = 0
     obligations: int = 0
+    salient_factors: list[str] = field(default_factory=list)
+    action_space_counts: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> JSONDict:
@@ -112,6 +114,8 @@ class DecisionBrief:
             "world_state_used": self.world_state_used,
             "verification_steps": self.verification_steps,
             "obligations": self.obligations,
+            "salient_factors": self.salient_factors,
+            "action_space_counts": self.action_space_counts,
             "warnings": self.warnings,
         }
 
@@ -140,6 +144,8 @@ class Decision:
     verification_plan: list[Any] = field(default_factory=list)
     obligations: list[Any] = field(default_factory=list)
     learning_hooks: list[Any] = field(default_factory=list)
+    responsible_action_space: JSONDict = field(default_factory=dict)
+    salient_factors: list[JSONDict] = field(default_factory=list)
     model_selection: ModelSelection = field(default_factory=ModelSelection)
     raw: JSONDict = field(default_factory=dict)
     _reviews: Any = field(default=None, repr=False, compare=False)
@@ -163,6 +169,8 @@ class Decision:
         packet = DecisionPacket.from_payload(packet_payload, proposed_action=proposed_action or "", context=context)
         brain = DecisionBrainResult.from_response(raw)
         model_selection = ModelSelection.from_backend_response(raw)
+        responsible_action_space = _normalize_action_space(raw.get("responsible_action_space"))
+        salient_factors = [dict(item) for item in _as_list(raw.get("salient_factors")) if isinstance(item, dict)]
 
         request_id = _optional_str(raw.get("request_id") or raw.get("validation_id") or raw.get("id"))
         resolved_proposed_action = _optional_str(
@@ -209,6 +217,8 @@ class Decision:
             verification_plan=list(packet.verification_plan or _as_list(raw.get("verification_plan"))),
             obligations=list(packet.obligations or _as_list(raw.get("open_obligations") or raw.get("obligations"))),
             learning_hooks=list(packet.learning_hooks or _as_list(raw.get("learning_hooks"))),
+            responsible_action_space=responsible_action_space,
+            salient_factors=salient_factors,
             model_selection=model_selection,
             raw=raw,
             _reviews=attached_reviews,
@@ -303,6 +313,8 @@ class Decision:
             "verification_plan": self.verification_plan,
             "obligations": self.obligations,
             "learning_hooks": self.learning_hooks,
+            "responsible_action_space": self.responsible_action_space,
+            "salient_factors": self.salient_factors,
             "model_selection": self.model_selection.to_dict(),
         }
 
@@ -332,6 +344,15 @@ class Decision:
             world_state_used=self.brain.world_state_used,
             verification_steps=len(self.verification_plan),
             obligations=len(self.obligations),
+            salient_factors=[
+                str(item.get("factor"))
+                for item in self.salient_factors
+                if isinstance(item, dict) and item.get("factor") not in (None, "")
+            ],
+            action_space_counts={
+                key: len(value) if isinstance(value, list) else 0
+                for key, value in self.responsible_action_space.items()
+            },
             warnings=[str(item) for item in warnings if item not in (None, "")],
         )
 
@@ -474,6 +495,20 @@ def _as_list(value: Any) -> list[Any]:
     if isinstance(value, list):
         return value
     return [value]
+
+
+def _normalize_action_space(value: Any) -> JSONDict:
+    raw = value if isinstance(value, dict) else {}
+    return {
+        "available": _action_items(raw.get("available")),
+        "constrained": _action_items(raw.get("constrained")),
+        "forbidden": _action_items(raw.get("forbidden")),
+        "information_gathering": _action_items(raw.get("information_gathering")),
+    }
+
+
+def _action_items(value: Any) -> list[JSONDict]:
+    return [dict(item) for item in _as_list(value) if isinstance(item, dict)]
 
 
 def _nested(data: JSONDict, *path: str) -> Any:

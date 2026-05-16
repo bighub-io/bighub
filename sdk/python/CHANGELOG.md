@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b3] - 2026-05-16
+
+### Added
+
+- Exposed `responsible_action_space` and `salient_factors` on `Decision`, `DecisionBrief`, and typed evaluate responses.
+- Added `client.learning.impact()` and `client.learning.disagreement_metrics()` for post-outcome learning impact metrics, including `avg_regret_reduction`.
+
+### Changed
+
+- Updated README examples to separate pre-execution decision signals from post-outcome learning impact metrics.
+
 ## [0.1.0b2] - 2026-05-15
 
 ### Changed

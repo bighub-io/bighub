@@ -47,6 +47,19 @@ def _decision_payload() -> dict:
             ],
             "precedents": {"total_precedents": 7},
         },
+        "responsible_action_space": {
+            "available": [],
+            "constrained": [
+                {"action": "Grant scoped Okta admin access for 48h", "reason": "Least privilege"}
+            ],
+            "forbidden": [],
+            "information_gathering": [
+                {"action": "Confirm entitlement after provisioning", "reason": "Verification step"}
+            ],
+        },
+        "salient_factors": [
+            {"factor": "open_obligations", "severity": "warn", "reason": "Access must be revoked."}
+        ],
     }
 
 
@@ -73,6 +86,8 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert decision.brain.reasoning_summary == payload["decision_brain"]["reasoning_summary"]
     assert decision.brain.confidence == 0.84
     assert decision.brain.world_state_used is True
+    assert decision.responsible_action_space["constrained"]
+    assert decision.salient_factors[0]["factor"] == "open_obligations"
     assert decision.reason == payload["reason"]
 
     brief = decision.brief()
@@ -82,6 +97,8 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert brief.needs_review is True
     assert brief.system == "okta"
     assert brief.world_state_used is True
+    assert brief.salient_factors == ["open_obligations", "weak_verifier_coverage", "high_blast_radius"]
+    assert brief.action_space_counts["constrained"] == 2
     assert brief.to_dict()["recommendation"] == payload["decision_brain"]["recommendation"]
 
 
@@ -116,6 +133,8 @@ def test_bighub_decide_returns_decision_object() -> None:
     assert decision.packet.system == "okta"
     assert decision.packet.packet_sha256_is_local is True
     assert decision.brain.precedent_count == 7
+    assert decision.responsible_action_space["constrained"][0]["action"] == "Grant scoped Okta admin access for 48h"
+    assert decision.brief().salient_factors == ["open_obligations"]
     bighub.close()
 
 

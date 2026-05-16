@@ -37,6 +37,49 @@ def test_sync_client_retries_transient_500() -> None:
     client.close()
 
 
+def test_sync_learning_impact_and_disagreement_metrics_paths() -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.url.path == "/consequence-graph/learning-impact":
+            assert request.url.params.get("source_type") == "intervention"
+            assert request.url.params.get("limit_examples") == "3"
+            return httpx.Response(
+                200,
+                json={
+                    "observed_ctg_edges": 10,
+                    "avg_regret_reduction": 0.24,
+                    "examples": [],
+                },
+            )
+        if request.url.path == "/consequence-graph/disagreements/metrics":
+            return httpx.Response(
+                200,
+                json={
+                    "total_records": 4,
+                    "avg_regret_when_bighub_changed_decision": 0.12,
+                    "avg_regret_when_baseline_path_followed": 0.36,
+                    "avg_regret_reduction": 0.24,
+                },
+            )
+        raise AssertionError(f"Unexpected {request.method} {request.url.path}")
+
+    client = BighubClient(api_key="bhk_test")
+    client._transport._client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    impact = client.learning.impact(source_type="intervention", limit_examples=3)
+    metrics = client.learning.disagreement_metrics()
+
+    assert impact["avg_regret_reduction"] == 0.24
+    assert metrics["avg_regret_when_baseline_path_followed"] == 0.36
+    assert seen == [
+        ("GET", "/consequence-graph/learning-impact"),
+        ("GET", "/consequence-graph/disagreements/metrics"),
+    ]
+    client.close()
+
+
 def test_sync_constraints_validate_and_domains() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/rules/validate":

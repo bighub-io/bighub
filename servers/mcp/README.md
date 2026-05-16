@@ -11,7 +11,7 @@ MCP client
    ↓
 BIGHUB API
    ↓
-proposed action → Decision Packet → DecisionBrain → better action → review if needed
+proposed action → Decision Packet → DecisionBrain → decision signals → run / review / context / block
 ```
 
 ---
@@ -33,7 +33,7 @@ proposed action → Decision Packet → DecisionBrain → better action → revi
 
 **Reference**
 
-- [Environment Variables](#environment-variables) · [Free BETA](#free-beta) · [Local Development](#local-development) · [Links](#links)
+- [Environment Variables](#environment-variables) · [Local Development](#local-development) · [Links](#links)
 
 ---
 
@@ -101,8 +101,8 @@ If your agent only answers questions or performs read-only lookups, you don't ne
 
 1. Send the proposed IT action to `bighub_decide`
 2. Let BIGHUB build or use a Decision Packet
-3. Run DecisionBrain and select the right model/path
-4. Execute the returned better action only when `execution_mode` allows it
+3. Run DecisionBrain and return execution mode, review/context flags, and a decision path when available
+4. Execute only when `can_run` is true and no blocking flags are set
 5. Route to review when BIGHUB asks for human approval or modification
 6. Optionally report the outcome later
 
@@ -125,7 +125,7 @@ The modern MCP surface is centered on the decision flow:
 | `bighub_build_packet` | Build a Decision Packet from action and context |
 | `bighub_run_brain` | Run DecisionBrain on a packet |
 | `bighub_list_reviews` | List pending reviews |
-| `bighub_resolve_review` | Approve, deny, or modify a better action |
+| `bighub_resolve_review` | Approve, deny, or modify the reviewed action |
 | `bighub_get_system_context` | Fetch context for Okta, Slack, or a configured integration provider |
 | `bighub_get_world_state` | Read operational world state |
 | `bighub_report_outcome` | Optionally report what happened later |
@@ -134,10 +134,10 @@ The modern MCP surface is centered on the decision flow:
 `bighub_decide` and `bighub_run_brain` return a normalized decision object first:
 `recommended_action`, `mode`, `can_run`, `needs_review`, `needs_more_context`,
 `should_not_run`, `risk`, `confidence`, `expected_regret`, `reason`, `system`,
-`selected_model`, `decision_path`, and counts for verification steps and
-obligations. The original backend payload is still available under `raw` for
-advanced callers. Legacy tools such as `bighub_actions_evaluate` remain
-available for compatibility.
+`selected_model` when available, `decision_path` when available, and counts for
+verification steps and obligations. The original backend payload is still
+available under `raw` for advanced callers. Legacy tools such as
+`bighub_actions_evaluate` remain available for compatibility.
 
 `bighub_build_packet` uses the same canonical JSON SHA-256 hashing strategy as
 the Python SDK, so packet hashes match across SDK and MCP clients.
@@ -146,7 +146,7 @@ the Python SDK, so packet hashes match across SDK and MCP clients.
 
 ## Trajectory-aware evaluation
 
-BIGHUB evaluates actions not only in isolation, but also in the context of what happened before. As outcomes accumulate, similar sequences and prior decisions improve future recommendations.
+BIGHUB evaluates actions not only in isolation, but also in the context of what happened before. As deployment, review, and outcome history accumulates, similar IT actions can receive better recommendations over time.
 
 ---
 
@@ -160,11 +160,11 @@ BIGHUB tools are organized by domain. The core loop tools are listed first.
 
 | Tool | Description |
 |---|---|
-| `bighub_actions_evaluate` | Submit an action for evaluation — returns recommendation, confidence, risk score |
-| `bighub_outcomes_report` | Report what actually happened after execution |
-| `bighub_precedents_query` | Query similar past cases |
-| `bighub_calibration_report` | Calibration report (prediction vs reality) |
-| `bighub_insights_advise` | Learned advisories for an action |
+| `bighub_decide` | Modern Better Decision entry point |
+| `bighub_build_packet` | Build a Decision Packet |
+| `bighub_run_brain` | Run DecisionBrain |
+| `bighub_report_outcome` | Optionally report what happened later |
+| `bighub_actions_evaluate` | Legacy / low-level action evaluation |
 
 ---
 
@@ -172,7 +172,7 @@ BIGHUB tools are organized by domain. The core loop tools are listed first.
 
 | Tool | Description |
 |---|---|
-| `bighub_actions_evaluate` | Evaluate an action (primary entry point) |
+| `bighub_actions_evaluate` | Legacy / low-level action evaluation |
 | `bighub_actions_evaluate_payload` | Evaluate with a free-form payload |
 | `bighub_actions_evaluate_batch` | Evaluate multiple actions in one request |
 | `bighub_actions_dry_run` | Non-persistent evaluation (preview) |
@@ -345,7 +345,9 @@ BIGHUB tools are organized by domain. The core loop tools are listed first.
 | `bighub_systems_poll_metrics` | Provider success/failure, latency, stale schedule and verifier metrics |
 | `bighub_systems_run_due_polls` | Run due polls for the current organization |
 
-Supported providers: `github`, `sentry`, `datadog`, `aws_cloudtrail`, `terraform`, `kubernetes`, `argocd`, `gitlab`, `jenkins`, `azure`, `prometheus`, `grafana`, and `openshift`. Common aliases such as `github-ci`, `cloudtrail`, `terraform-cloud`, `k8s`, `argo-cd`, `gitlab-ci`, and `ocp` are normalized to backend provider IDs.
+Supported system providers include `okta`, `slack`, `github`, `sentry`, `datadog`, `aws_cloudtrail`, `terraform`, `kubernetes`, `argocd`, `gitlab`, `jenkins`, `azure`, `prometheus`, `grafana`, and `openshift`. Common aliases such as `github-ci`, `cloudtrail`, `terraform-cloud`, `k8s`, `argo-cd`, `gitlab-ci`, and `ocp` are normalized to backend provider IDs.
+
+Poll snapshots and histories are redacted before persistence and exposure. They provide best-effort operational context; they are not a replacement for production monitoring.
 
 ---
 
@@ -454,17 +456,6 @@ Supported providers: `github`, `sentry`, `datadog`, `aws_cloudtrail`, `terraform
 \* One of `BIGHUB_API_KEY` or `BIGHUB_BEARER_TOKEN` is required.
 
 Management tools (API keys, webhooks, auth) require user JWT auth via `BIGHUB_BEARER_TOKEN`.
-
----
-
-## Free BETA
-
-Current Free BETA limits:
-
-- 3 agents
-- 2,500 actions / month
-- 30 days history
-- 1 environment
 
 ---
 

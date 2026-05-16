@@ -97,6 +97,10 @@ class DecisionBrief:
     signal_confidence_floor: Optional[float] = None
     conflicted_signal_count: int = 0
     high_spoofability_signal_count: int = 0
+    signal_manipulation_risk: Optional[str] = None
+    signal_manipulation_requires_review: Optional[bool] = None
+    signal_manipulation_should_suspend: Optional[bool] = None
+    signal_manipulation_controls: list[str] = field(default_factory=list)
     safe_novelty_lane_status: Optional[str] = None
     safe_novelty_lane_mode: Optional[str] = None
     safe_novelty_lane_eligible: Optional[bool] = None
@@ -134,6 +138,10 @@ class DecisionBrief:
             "signal_confidence_floor": self.signal_confidence_floor,
             "conflicted_signal_count": self.conflicted_signal_count,
             "high_spoofability_signal_count": self.high_spoofability_signal_count,
+            "signal_manipulation_risk": self.signal_manipulation_risk,
+            "signal_manipulation_requires_review": self.signal_manipulation_requires_review,
+            "signal_manipulation_should_suspend": self.signal_manipulation_should_suspend,
+            "signal_manipulation_controls": self.signal_manipulation_controls,
             "safe_novelty_lane_status": self.safe_novelty_lane_status,
             "safe_novelty_lane_mode": self.safe_novelty_lane_mode,
             "safe_novelty_lane_eligible": self.safe_novelty_lane_eligible,
@@ -172,6 +180,7 @@ class Decision:
     responsible_action_space: JSONDict = field(default_factory=dict)
     salient_factors: list[JSONDict] = field(default_factory=list)
     signal_epistemology: JSONDict = field(default_factory=dict)
+    signal_manipulation_audit: JSONDict = field(default_factory=dict)
     operational_intent: JSONDict = field(default_factory=dict)
     agent_operational_body: JSONDict = field(default_factory=dict)
     action_interpretation_layer: JSONDict = field(default_factory=dict)
@@ -206,6 +215,11 @@ class Decision:
         signal_epistemology = (
             dict(raw.get("signal_epistemology"))
             if isinstance(raw.get("signal_epistemology"), dict)
+            else {}
+        )
+        signal_manipulation_audit = (
+            dict(raw.get("signal_manipulation_audit"))
+            if isinstance(raw.get("signal_manipulation_audit"), dict)
             else {}
         )
         operational_intent = dict(raw.get("operational_intent")) if isinstance(raw.get("operational_intent"), dict) else {}
@@ -285,6 +299,7 @@ class Decision:
             responsible_action_space=responsible_action_space,
             salient_factors=salient_factors,
             signal_epistemology=signal_epistemology,
+            signal_manipulation_audit=signal_manipulation_audit,
             operational_intent=operational_intent,
             agent_operational_body=agent_operational_body,
             action_interpretation_layer=action_interpretation_layer,
@@ -389,6 +404,7 @@ class Decision:
             "responsible_action_space": self.responsible_action_space,
             "salient_factors": self.salient_factors,
             "signal_epistemology": self.signal_epistemology,
+            "signal_manipulation_audit": self.signal_manipulation_audit,
             "operational_intent": self.operational_intent,
             "agent_operational_body": self.agent_operational_body,
             "action_interpretation_layer": self.action_interpretation_layer,
@@ -439,6 +455,14 @@ class Decision:
             signal_confidence_floor=_first_float(_nested(self.signal_epistemology, "summary", "min_confidence")),
             conflicted_signal_count=int(_first_float(_nested(self.signal_epistemology, "summary", "conflicted_factors"), 0) or 0),
             high_spoofability_signal_count=int(_first_float(_nested(self.signal_epistemology, "summary", "high_spoofability_factors"), 0) or 0),
+            signal_manipulation_risk=_optional_str(self.signal_manipulation_audit.get("manipulation_risk")),
+            signal_manipulation_requires_review=_optional_bool(self.signal_manipulation_audit.get("requires_review")),
+            signal_manipulation_should_suspend=_optional_bool(self.signal_manipulation_audit.get("should_suspend_autonomous_execution")),
+            signal_manipulation_controls=[
+                str(item)
+                for item in _as_list(self.signal_manipulation_audit.get("required_controls"))
+                if item not in (None, "")
+            ],
             safe_novelty_lane_status=_optional_str(self.safe_novelty_lane.get("status")),
             safe_novelty_lane_mode=_optional_str(self.safe_novelty_lane.get("recommended_intervention_mode")),
             safe_novelty_lane_eligible=_optional_bool(self.safe_novelty_lane.get("eligible")),

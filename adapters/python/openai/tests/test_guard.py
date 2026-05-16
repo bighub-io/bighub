@@ -1556,6 +1556,13 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
                     "summary": {"conflicted_factors": 1, "high_spoofability_factors": 1},
                     "conflicts": [{"factor": "weak_verifier_coverage"}],
                 },
+                "signal_manipulation_audit": {
+                    "schema_version": "signal_manipulation_audit_v1",
+                    "active": True,
+                    "manipulation_risk": "high",
+                    "requires_review": True,
+                    "required_controls": ["cross_check_with_independent_verifier_or_audit_log"],
+                },
                 "safe_novelty_lane": {
                     "schema_version": "safe_novelty_lane_v1",
                     "active": True,
@@ -1588,6 +1595,7 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
     assert response["execution"]["last"]["catastrophic_ceiling"]["non_learnable"] is True
     assert response["execution"]["last"]["expected_regret_vector"]["dimensions"]["financial_loss"] == 0.41
     assert response["execution"]["last"]["signal_epistemology"]["summary"]["conflicted_factors"] == 1
+    assert response["execution"]["last"]["signal_manipulation_audit"]["manipulation_risk"] == "high"
     assert response["execution"]["last"]["safe_novelty_lane"]["recommended_intervention_mode"] == "sandbox"
     assert fake_bighub.decisions.calls[0]["context"]["objective"] == "better_decision"
 

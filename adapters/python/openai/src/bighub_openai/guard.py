@@ -83,6 +83,7 @@ class ToolResult:
     catastrophic_ceiling: Optional[Dict[str, Any]] = None
     expected_regret_vector: Optional[Dict[str, Any]] = None
     signal_epistemology: Optional[Dict[str, Any]] = None
+    signal_manipulation_audit: Optional[Dict[str, Any]] = None
     safe_novelty_lane: Optional[Dict[str, Any]] = None
 
 
@@ -118,6 +119,7 @@ class ToolExecutionEvent:
     catastrophic_ceiling: Optional[Dict[str, Any]] = None
     expected_regret_vector: Optional[Dict[str, Any]] = None
     signal_epistemology: Optional[Dict[str, Any]] = None
+    signal_manipulation_audit: Optional[Dict[str, Any]] = None
     safe_novelty_lane: Optional[Dict[str, Any]] = None
 
 
@@ -861,6 +863,8 @@ class BighubOpenAI:
             result.expected_regret_vector = decision["expected_regret_vector"]
         if isinstance(decision.get("signal_epistemology"), dict):
             result.signal_epistemology = decision["signal_epistemology"]
+        if isinstance(decision.get("signal_manipulation_audit"), dict):
+            result.signal_manipulation_audit = decision["signal_manipulation_audit"]
         if isinstance(decision.get("safe_novelty_lane"), dict):
             result.safe_novelty_lane = decision["safe_novelty_lane"]
         advisory = decision.get("decision_intelligence") or {}
@@ -962,6 +966,7 @@ class BighubOpenAI:
             catastrophic_ceiling=result.catastrophic_ceiling,
             expected_regret_vector=result.expected_regret_vector,
             signal_epistemology=result.signal_epistemology,
+            signal_manipulation_audit=result.signal_manipulation_audit,
             safe_novelty_lane=result.safe_novelty_lane,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
@@ -1899,6 +1904,7 @@ class AsyncBighubOpenAI(BighubOpenAI):
             catastrophic_ceiling=result.catastrophic_ceiling,
             expected_regret_vector=result.expected_regret_vector,
             signal_epistemology=result.signal_epistemology,
+            signal_manipulation_audit=result.signal_manipulation_audit,
             safe_novelty_lane=result.safe_novelty_lane,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event

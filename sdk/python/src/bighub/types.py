@@ -308,6 +308,21 @@ class SignalEpistemologyDict(TypedDict, total=False):
     warnings: List[str]
 
 
+class SignalManipulationAuditDict(TypedDict, total=False):
+    schema_version: str
+    active: bool
+    manipulation_risk: str
+    requires_review: bool
+    should_suspend_autonomous_execution: bool
+    separation_policy: str
+    summary: JSONDict
+    roles: JSONDict
+    findings: List[JSONDict]
+    required_controls: List[str]
+    decision_effect: JSONDict
+    note: str
+
+
 class SafeNoveltyLaneDict(TypedDict, total=False):
     schema_version: str
     active: bool
@@ -322,6 +337,149 @@ class SafeNoveltyLaneDict(TypedDict, total=False):
     conditions: JSONDict
     forbidden_escalations: List[str]
     evidence: JSONDict
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEDERATED NOOSPHERE
+#
+# Cross-organization civilizational learning. Patterns published here carry
+# no org_id, no transition_id, and no payload — only structurally abstract
+# fields and coarse aggregates after k-anonymity filtering.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class FederatedInvariantPatternDict(TypedDict, total=False):
+    schema_version: str
+    pattern_id: str
+    invariant_type: str
+    generalized_scope: str
+    domains: List[str]
+    decision_shapes: List[str]
+    prescribed_policy_mode: Optional[str]
+    prescribed_policy_controls: List[str]
+    contributing_org_count: int
+    total_support_count: int
+    avg_confidence: Optional[float]
+    avg_realized_regret: Optional[float]
+    avg_violation_count: Optional[float]
+    consensus_score: float
+    k_anonymity_status: str
+    first_seen_at: Optional[str]
+    last_seen_at: Optional[str]
+    note: str
+
+
+class FederatedDisagreementPatternDict(TypedDict, total=False):
+    schema_version: str
+    pattern_id: str
+    disagreement_type: str
+    decision_shapes: List[str]
+    domains: List[str]
+    systems: List[str]
+    contributing_org_count: int
+    total_records: int
+    winners: JSONDict
+    civilizational_winner: Optional[str]
+    consensus_strength: float
+    avg_realized_regret: Optional[float]
+    avg_regret_reduction: Optional[float]
+    k_anonymity_status: str
+    first_seen_at: Optional[str]
+    last_seen_at: Optional[str]
+    note: str
+
+
+class FederatedBreachPatternDict(TypedDict, total=False):
+    schema_version: str
+    pattern_id: str
+    promise_type: str
+    contributing_org_count: int
+    total_promises: int
+    total_breaches: int
+    breach_rate: float
+    severity_distribution: JSONDict
+    domains: List[str]
+    k_anonymity_status: str
+    first_seen_at: Optional[str]
+    last_seen_at: Optional[str]
+    note: str
+
+
+class FederatedNoosphereSummaryDict(TypedDict, total=False):
+    schema_version: str
+    contributing_org_count: int
+    invariant_pattern_count: int
+    disagreement_pattern_count: int
+    breach_pattern_count: int
+    suppressed_invariant_patterns: int
+    suppressed_disagreement_patterns: int
+    suppressed_breach_patterns: int
+    k_anonymity_threshold: int
+    min_total_support: int
+    privacy_policy: str
+    note: str
+
+
+class FederatedNoosphereSnapshotResponse(TypedDict, total=False):
+    schema_version: str
+    summary: FederatedNoosphereSummaryDict
+    invariant_patterns: List[FederatedInvariantPatternDict]
+    disagreement_patterns: List[FederatedDisagreementPatternDict]
+    breach_patterns: List[FederatedBreachPatternDict]
+
+
+class FederatedContributionResponse(TypedDict, total=False):
+    schema_version: str
+    org_id: str
+    invariant_count: int
+    disagreement_count: int
+    promise_count: int
+    contributed_at: str
+    note: str
+
+
+class FederatedApplicabilityVerdictDict(TypedDict, total=False):
+    schema_version: str
+    pattern_id: str
+    pattern_kind: str
+    org_id: str
+    status: str
+    profile_match_score: float
+    domain_match: bool
+    shape_match: bool
+    local_support_count: int
+    local_invariants_supporting: int
+    local_disagreements_supporting: int
+    contributing_org_count: int
+    civilizational_consensus: float
+    reasons: List[str]
+    recommended_local_test: Optional[JSONDict]
+    note: str
+    evaluated_at: str
+
+
+class FederatedApplicabilityReportDict(TypedDict, total=False):
+    schema_version: str
+    org_id: str
+    invariant_pattern_count: int
+    disagreement_pattern_count: int
+    applicable_count: int
+    applicable_with_review_count: int
+    not_applicable_count: int
+    insufficient_local_data_count: int
+    verdicts: List[FederatedApplicabilityVerdictDict]
+
+
+class FederatedApplicabilityVerdictResponse(TypedDict, total=False):
+    schema_version: str
+    org_id: str
+    verdict: FederatedApplicabilityVerdictDict
+
+
+class FederatedApplicabilityReportResponse(TypedDict, total=False):
+    schema_version: str
+    org_id: str
+    report: FederatedApplicabilityReportDict
 
 
 class DisagreementMetricsResponse(TypedDict, total=False):
@@ -377,9 +535,21 @@ class LearningImpactReportResponse(TypedDict, total=False):
     promises_breached: int
     promise_keep_rate: Optional[float]
     breaches_by_promise_type: JSONDict
+    deontic_registry_summary: JSONDict
+    open_deontic_claims: List[JSONDict]
+    open_deontic_remedies: List[JSONDict]
+    deontic_precedents: List[JSONDict]
+    decision_freedom_metrics: JSONDict
+    stagnation_risk: Optional[str]
+    conservative_pressure_score: Optional[float]
+    innovation_saved_count: int
+    potential_overconservative_blocks: int
     regret_vector_summary: JSONDict
     top_regret_dimensions: List[JSONDict]
     regret_damage_bearers: JSONDict
+    multi_domain_cascade_summary: JSONDict
+    top_multi_domain_cascades: List[JSONDict]
+    cascade_domain_paths: List[JSONDict]
     examples: List[JSONDict]
 
 
@@ -443,6 +613,7 @@ class ActionEvaluateResponse(TypedDict, total=False):
     responsible_action_space: ResponsibleActionSpaceDict
     salient_factors: List[SalientFactorDict]
     signal_epistemology: SignalEpistemologyDict
+    signal_manipulation_audit: SignalManipulationAuditDict
     operational_intent: OperationalIntentDict
     agent_operational_body: AgentOperationalBodyDict
     action_interpretation_layer: ActionInterpretationLayerDict

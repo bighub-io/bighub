@@ -200,6 +200,38 @@
     "conflicts": [{"factor": "high_blast_radius", "reason": "sources_disagree"}],
     "warnings": ["high_blast_radius: source spoofability is high"]
   },
+  "signal_manipulation_audit": {
+    "schema_version": "signal_manipulation_audit_v1",
+    "active": true,
+    "manipulation_risk": "high",
+    "requires_review": true,
+    "should_suspend_autonomous_execution": false,
+    "separation_policy": "source_evaluator_executor_must_be_distinct_for_high_impact_signals",
+    "summary": {
+      "finding_count": 1,
+      "critical_findings": 0,
+      "high_findings": 1,
+      "attested_source_count": 0,
+      "trusted_source_count": 0,
+      "salience_change_count": 0
+    },
+    "roles": {"evaluator": "bighub", "executor": "agent"},
+    "findings": [
+      {
+        "factor": "high_blast_radius",
+        "severity": "high",
+        "finding_type": "manipulable_high_impact_signal",
+        "reason": "High-impact factor has high spoofability, poisoning risk, or conflicting assertions.",
+        "sources": [{"source": "request_context", "source_type": "context", "signed_or_attested": false}]
+      }
+    ],
+    "required_controls": ["cross_check_with_independent_verifier_or_audit_log"],
+    "decision_effect": {
+      "requires_review": true,
+      "should_not_run": false,
+      "reason": "Signal manipulation risk detected; require independent review or attested source refresh."
+    }
+  },
   "operational_intent": {
     "declared": "better_decision",
     "inferred": "Grant the minimum necessary access on okta in production with reduced scope or safer execution",

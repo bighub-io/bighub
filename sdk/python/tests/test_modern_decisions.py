@@ -127,6 +127,7 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert decision.responsible_action_space["constrained"]
     assert decision.salient_factors[0]["factor"] == "open_obligations"
     assert decision.signal_epistemology["summary"]["conflicted_factors"] == 1
+    assert decision.signal_manipulation_audit["manipulation_risk"] == "high"
     assert decision.operational_intent["mismatch"] is True
     assert decision.agent_operational_body["can_touch"][0] == "okta"
     assert decision.action_interpretation_layer["action_family"] == "privilege_escalation"
@@ -150,6 +151,10 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert brief.signal_confidence_floor == 0.38
     assert brief.conflicted_signal_count == 1
     assert brief.high_spoofability_signal_count == 1
+    assert brief.signal_manipulation_risk == "high"
+    assert brief.signal_manipulation_requires_review is True
+    assert brief.signal_manipulation_should_suspend is False
+    assert brief.signal_manipulation_controls == ["cross_check_with_independent_verifier_or_audit_log"]
     assert brief.safe_novelty_lane_status == "review_only"
     assert brief.safe_novelty_lane_mode == "review_required"
     assert brief.safe_novelty_lane_eligible is False

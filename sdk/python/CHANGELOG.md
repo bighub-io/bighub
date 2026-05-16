@@ -8,6 +8,20 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b6] - 2026-05-16
+
+### Added
+
+- Added the Federated Noosphere SDK surface: `client.noosphere.contribute()`, `snapshot()`, `invariant_patterns()`, `disagreement_patterns()`, `breach_patterns()`, `invariant_applicability()`, `disagreement_applicability()`, and `applicability_report()`.
+- Added typed responses for cross-organization civilizational learning: `FederatedInvariantPatternDict`, `FederatedDisagreementPatternDict`, `FederatedBreachPatternDict`, `FederatedNoosphereSummaryDict`, `FederatedNoosphereSnapshotResponse`, `FederatedContributionResponse`, `FederatedApplicabilityVerdictDict`, `FederatedApplicabilityReportDict`, and their wrapping responses.
+- Exposed signal-manipulation audit on `Decision`, `DecisionBrief`, and typed evaluate responses via `SignalManipulationAuditDict`.
+- Added multi-domain causality cascades, deontic registry, and decision freedom metrics on the learning impact report typed responses.
+
+### Notes
+
+- Federated patterns are advisory and never carry org_id, transition_id, or payload data. They are published only after k-anonymity filtering.
+- Decision freedom metrics expose stagnation risk and conservative-pressure scoring so SDK consumers can observe whether BIGHUB is over-blocking legitimate novelty.
+
 ## [0.1.0b5] - 2026-05-16
 
 ### Added

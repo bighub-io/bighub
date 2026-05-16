@@ -18,6 +18,7 @@ from .resources.ingest import AsyncIngestAPI
 from .resources.insights import AsyncInsightsAPI
 from .resources.kill_switch import AsyncKillSwitchAPI
 from .resources.learning import AsyncLearningAPI
+from .resources.noosphere import AsyncNoosphereAPI
 from .resources.outcomes import AsyncOutcomesAPI
 from .resources.precedents import AsyncPrecedentsAPI
 from .resources.retrieval import AsyncRetrievalAPI
@@ -77,6 +78,7 @@ class AsyncBighubClient:
         self.features = AsyncFeaturesAPI(self._transport)
         self.simulations = AsyncSimulationsAPI(self._transport)
         self.learning = AsyncLearningAPI(self._transport)
+        self.noosphere = AsyncNoosphereAPI(self._transport)
 
         # Configuration and controls
         self.constraints = AsyncConstraintsAPI(self._transport)

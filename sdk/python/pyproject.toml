@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bighub"
-version = "0.1.0b5"
+version = "0.1.0b6"
 description = "Better Decision SDK for IT agent actions with BIGHUB."
 readme = "README.md"
 requires-python = ">=3.9"

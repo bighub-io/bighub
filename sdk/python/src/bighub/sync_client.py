@@ -17,6 +17,7 @@ from .resources.ingest import IngestAPI
 from .resources.insights import InsightsAPI
 from .resources.kill_switch import KillSwitchAPI
 from .resources.learning import LearningAPI
+from .resources.noosphere import NoosphereAPI
 from .resources.outcomes import OutcomesAPI
 from .resources.precedents import PrecedentsAPI
 from .resources.retrieval import RetrievalAPI
@@ -77,6 +78,7 @@ class BighubClient:
         self.features = FeaturesAPI(self._transport)
         self.simulations = SimulationsAPI(self._transport)
         self.learning = LearningAPI(self._transport)
+        self.noosphere = NoosphereAPI(self._transport)
 
         # Configuration and controls
         self.constraints = ConstraintsAPI(self._transport)

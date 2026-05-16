@@ -50,6 +50,26 @@ def test_sync_learning_impact_and_disagreement_metrics_paths() -> None:
                 json={
                     "observed_ctg_edges": 10,
                     "avg_regret_reduction": 0.24,
+                    "deontic_registry_summary": {
+                        "summary": {"claim_count": 1, "remedy_count": 1},
+                    },
+                    "open_deontic_claims": [{"claim_id": "clm_1"}],
+                    "open_deontic_remedies": [{"remedy_id": "rmd_1"}],
+                    "deontic_precedents": [{"precedent_id": "prd_1"}],
+                    "decision_freedom_metrics": {
+                        "conservatism": {
+                            "stagnation_risk": "medium",
+                            "conservative_pressure_score": 0.42,
+                        },
+                        "exploration": {
+                            "innovation_saved_count": 2,
+                            "potential_overconservative_blocks": 1,
+                        },
+                    },
+                    "stagnation_risk": "medium",
+                    "conservative_pressure_score": 0.42,
+                    "innovation_saved_count": 2,
+                    "potential_overconservative_blocks": 1,
                     "examples": [],
                 },
             )
@@ -72,10 +92,93 @@ def test_sync_learning_impact_and_disagreement_metrics_paths() -> None:
     metrics = client.learning.disagreement_metrics()
 
     assert impact["avg_regret_reduction"] == 0.24
+    assert impact["deontic_registry_summary"]["summary"]["claim_count"] == 1
+    assert impact["open_deontic_remedies"][0]["remedy_id"] == "rmd_1"
+    assert impact["stagnation_risk"] == "medium"
+    assert impact["innovation_saved_count"] == 2
     assert metrics["avg_regret_when_baseline_path_followed"] == 0.36
     assert seen == [
         ("GET", "/consequence-graph/learning-impact"),
         ("GET", "/consequence-graph/disagreements/metrics"),
+    ]
+    client.close()
+
+
+def test_sync_noosphere_routes_paths() -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.method == "POST" and request.url.path == "/federated-noosphere/contribute":
+            return httpx.Response(
+                200,
+                json={
+                    "schema_version": "federated_noosphere_v1",
+                    "org_id": "org-D",
+                    "invariant_count": 1,
+                    "disagreement_count": 2,
+                    "promise_count": 3,
+                    "contributed_at": "2026-05-16T20:00:00+00:00",
+                },
+            )
+        if request.method == "GET" and request.url.path == "/federated-noosphere/snapshot":
+            return httpx.Response(
+                200,
+                json={
+                    "schema_version": "federated_noosphere_v1",
+                    "summary": {
+                        "schema_version": "federated_noosphere_v1",
+                        "contributing_org_count": 4,
+                        "invariant_pattern_count": 1,
+                        "disagreement_pattern_count": 1,
+                        "breach_pattern_count": 1,
+                    },
+                    "invariant_patterns": [{"pattern_id": "fnp_x", "invariant_type": "weak"}],
+                    "disagreement_patterns": [{"pattern_id": "fdp_y", "civilizational_winner": "bighub"}],
+                    "breach_patterns": [{"pattern_id": "fbp_z", "promise_type": "verification"}],
+                },
+            )
+        if request.method == "GET" and request.url.path == "/federated-noosphere/invariant-patterns":
+            assert request.url.params.get("invariant_type") == "weak"
+            return httpx.Response(200, json=[{"pattern_id": "fnp_x"}])
+        if (
+            request.method == "GET"
+            and request.url.path == "/federated-noosphere/applicability/invariant/fnp_x"
+        ):
+            return httpx.Response(
+                200,
+                json={
+                    "schema_version": "federated_applicability_v1",
+                    "org_id": "org-D",
+                    "verdict": {
+                        "schema_version": "federated_applicability_v1",
+                        "pattern_id": "fnp_x",
+                        "pattern_kind": "invariant",
+                        "org_id": "org-D",
+                        "status": "applicable_with_review",
+                        "profile_match_score": 0.42,
+                    },
+                },
+            )
+        return httpx.Response(404, json={"detail": "not_found"})
+
+    client = BighubClient(api_key="bhk_test")
+    client._transport._client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
+
+    contribution = client.noosphere.contribute()
+    snapshot = client.noosphere.snapshot()
+    patterns = client.noosphere.invariant_patterns(invariant_type="weak")
+    verdict = client.noosphere.invariant_applicability("fnp_x")
+
+    assert contribution["invariant_count"] == 1
+    assert snapshot["summary"]["contributing_org_count"] == 4
+    assert patterns[0]["pattern_id"] == "fnp_x"
+    assert verdict["verdict"]["status"] == "applicable_with_review"
+    assert seen == [
+        ("POST", "/federated-noosphere/contribute"),
+        ("GET", "/federated-noosphere/snapshot"),
+        ("GET", "/federated-noosphere/invariant-patterns"),
+        ("GET", "/federated-noosphere/applicability/invariant/fnp_x"),
     ]
     client.close()
 

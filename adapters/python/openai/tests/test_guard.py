@@ -1530,6 +1530,40 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
                     "interpreted_action": "financial/customer transaction with loss or fraud exposure",
                     "action_family": "financial_action",
                 },
+                "performative_contracts": [
+                    {
+                        "promise_id": "prm_refund_audit",
+                        "promise_type": "audit_logging",
+                        "content": "Preserve an audit trail for the refund.",
+                        "status": "open",
+                    }
+                ],
+                "catastrophic_ceiling": {
+                    "active": False,
+                    "policy": "catastrophic_epoche_v1",
+                    "non_learnable": True,
+                },
+                "expected_regret_vector": {
+                    "schema_version": "regret_vector_v1",
+                    "source": "decision_projection",
+                    "scalar_regret": 0.41,
+                    "dimensions": {"financial_loss": 0.41, "contractual": 0.35},
+                    "dominant_dimensions": ["financial_loss", "contractual"],
+                    "damage_bearers": ["customers"],
+                },
+                "signal_epistemology": {
+                    "schema_version": "signal_epistemology_v1",
+                    "summary": {"conflicted_factors": 1, "high_spoofability_factors": 1},
+                    "conflicts": [{"factor": "weak_verifier_coverage"}],
+                },
+                "safe_novelty_lane": {
+                    "schema_version": "safe_novelty_lane_v1",
+                    "active": True,
+                    "eligible": True,
+                    "status": "eligible",
+                    "recommended_intervention_mode": "sandbox",
+                    "conditions": {"blast_radius_cap": 0.05},
+                },
             }
 
     fake_bighub = FakeBighubClient()
@@ -1550,6 +1584,11 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
     assert response["execution"]["last"]["operational_intent"]["mismatch"] is False
     assert response["execution"]["last"]["agent_operational_body"]["can_touch"] == ["payments"]
     assert response["execution"]["last"]["action_interpretation_layer"]["action_family"] == "financial_action"
+    assert response["execution"]["last"]["performative_contracts"][0]["promise_type"] == "audit_logging"
+    assert response["execution"]["last"]["catastrophic_ceiling"]["non_learnable"] is True
+    assert response["execution"]["last"]["expected_regret_vector"]["dimensions"]["financial_loss"] == 0.41
+    assert response["execution"]["last"]["signal_epistemology"]["summary"]["conflicted_factors"] == 1
+    assert response["execution"]["last"]["safe_novelty_lane"]["recommended_intervention_mode"] == "sandbox"
     assert fake_bighub.decisions.calls[0]["context"]["objective"] == "better_decision"
 
 

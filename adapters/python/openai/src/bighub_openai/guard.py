@@ -79,6 +79,11 @@ class ToolResult:
     operational_intent: Optional[Dict[str, Any]] = None
     agent_operational_body: Optional[Dict[str, Any]] = None
     action_interpretation_layer: Optional[Dict[str, Any]] = None
+    performative_contracts: Optional[List[Dict[str, Any]]] = None
+    catastrophic_ceiling: Optional[Dict[str, Any]] = None
+    expected_regret_vector: Optional[Dict[str, Any]] = None
+    signal_epistemology: Optional[Dict[str, Any]] = None
+    safe_novelty_lane: Optional[Dict[str, Any]] = None
 
 
 GuardedToolResult = ToolResult
@@ -109,6 +114,11 @@ class ToolExecutionEvent:
     operational_intent: Optional[Dict[str, Any]] = None
     agent_operational_body: Optional[Dict[str, Any]] = None
     action_interpretation_layer: Optional[Dict[str, Any]] = None
+    performative_contracts: Optional[List[Dict[str, Any]]] = None
+    catastrophic_ceiling: Optional[Dict[str, Any]] = None
+    expected_regret_vector: Optional[Dict[str, Any]] = None
+    signal_epistemology: Optional[Dict[str, Any]] = None
+    safe_novelty_lane: Optional[Dict[str, Any]] = None
 
 
 class BighubOpenAI:
@@ -841,6 +851,18 @@ class BighubOpenAI:
             result.agent_operational_body = decision["agent_operational_body"]
         if isinstance(decision.get("action_interpretation_layer"), dict):
             result.action_interpretation_layer = decision["action_interpretation_layer"]
+        if isinstance(decision.get("performative_contracts"), list):
+            result.performative_contracts = [
+                item for item in decision["performative_contracts"] if isinstance(item, dict)
+            ]
+        if isinstance(decision.get("catastrophic_ceiling"), dict):
+            result.catastrophic_ceiling = decision["catastrophic_ceiling"]
+        if isinstance(decision.get("expected_regret_vector"), dict):
+            result.expected_regret_vector = decision["expected_regret_vector"]
+        if isinstance(decision.get("signal_epistemology"), dict):
+            result.signal_epistemology = decision["signal_epistemology"]
+        if isinstance(decision.get("safe_novelty_lane"), dict):
+            result.safe_novelty_lane = decision["safe_novelty_lane"]
         advisory = decision.get("decision_intelligence") or {}
         fallback = decision.get("intelligence") or {}
         result.trajectory_health = advisory.get("trajectory_health") or fallback.get("trajectory_health")
@@ -936,6 +958,11 @@ class BighubOpenAI:
             operational_intent=result.operational_intent,
             agent_operational_body=result.agent_operational_body,
             action_interpretation_layer=result.action_interpretation_layer,
+            performative_contracts=result.performative_contracts,
+            catastrophic_ceiling=result.catastrophic_ceiling,
+            expected_regret_vector=result.expected_regret_vector,
+            signal_epistemology=result.signal_epistemology,
+            safe_novelty_lane=result.safe_novelty_lane,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
@@ -1868,6 +1895,11 @@ class AsyncBighubOpenAI(BighubOpenAI):
             operational_intent=result.operational_intent,
             agent_operational_body=result.agent_operational_body,
             action_interpretation_layer=result.action_interpretation_layer,
+            performative_contracts=result.performative_contracts,
+            catastrophic_ceiling=result.catastrophic_ceiling,
+            expected_regret_vector=result.expected_regret_vector,
+            signal_epistemology=result.signal_epistemology,
+            safe_novelty_lane=result.safe_novelty_lane,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 

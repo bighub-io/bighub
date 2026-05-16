@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b5] - 2026-05-16
+
+### Added
+
+- Exposed expanded decision intelligence surfaces on `Decision`, `DecisionBrief`, and typed evaluate responses: performative contracts, catastrophic ceilings, regret vectors, signal epistemology, and safe novelty lanes.
+- Added learning impact report typing for promise metrics and regret vector summaries.
+
+### Changed
+
+- Switched public package licensing metadata and license text from MIT to Apache-2.0.
+
 ## [0.1.0b4] - 2026-05-16
 
 ### Added

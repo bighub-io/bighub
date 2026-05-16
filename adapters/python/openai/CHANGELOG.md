@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b5] - 2026-05-16
+
+### Added
+
+- Propagated expanded BIGHUB decision surfaces into OpenAI tool results and execution events: performative contracts, catastrophic ceilings, regret vectors, signal epistemology, and safe novelty lanes.
+
+### Changed
+
+- Aligned the core SDK dependency to `bighub>=0.1.0b5,<0.2.0`.
+- Switched public package licensing metadata and license text from MIT to Apache-2.0.
+
 ## [0.1.0b4] - 2026-05-16
 
 ### Added

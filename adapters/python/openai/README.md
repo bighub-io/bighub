@@ -37,7 +37,7 @@ Requires Python 3.9+.
 
 Dependencies:
 
-- `bighub>=0.1.0b4,<0.2.0`
+- `bighub>=0.1.0b5,<0.2.0`
 - `openai>=2.0.0,<3.0.0`
 
 ---

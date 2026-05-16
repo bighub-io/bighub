@@ -198,4 +198,4 @@ Prefer **`from bighub import Bighub`** + **`bighub.decide(...)`** for new IT age
 
 ## License
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE)

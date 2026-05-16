@@ -94,6 +94,15 @@ class DecisionBrief:
     action_family: Optional[str] = None
     interpreted_action: Optional[str] = None
     intent_mismatch: Optional[bool] = None
+    signal_confidence_floor: Optional[float] = None
+    conflicted_signal_count: int = 0
+    high_spoofability_signal_count: int = 0
+    safe_novelty_lane_status: Optional[str] = None
+    safe_novelty_lane_mode: Optional[str] = None
+    safe_novelty_lane_eligible: Optional[bool] = None
+    top_regret_dimensions: list[str] = field(default_factory=list)
+    promise_types: list[str] = field(default_factory=list)
+    catastrophic_ceiling_active: Optional[bool] = None
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> JSONDict:
@@ -122,6 +131,15 @@ class DecisionBrief:
             "action_family": self.action_family,
             "interpreted_action": self.interpreted_action,
             "intent_mismatch": self.intent_mismatch,
+            "signal_confidence_floor": self.signal_confidence_floor,
+            "conflicted_signal_count": self.conflicted_signal_count,
+            "high_spoofability_signal_count": self.high_spoofability_signal_count,
+            "safe_novelty_lane_status": self.safe_novelty_lane_status,
+            "safe_novelty_lane_mode": self.safe_novelty_lane_mode,
+            "safe_novelty_lane_eligible": self.safe_novelty_lane_eligible,
+            "top_regret_dimensions": self.top_regret_dimensions,
+            "promise_types": self.promise_types,
+            "catastrophic_ceiling_active": self.catastrophic_ceiling_active,
             "warnings": self.warnings,
         }
 
@@ -147,14 +165,19 @@ class Decision:
     risk: Optional[float]
     confidence: Optional[float]
     expected_regret: Optional[float]
+    expected_regret_vector: JSONDict = field(default_factory=dict)
     verification_plan: list[Any] = field(default_factory=list)
     obligations: list[Any] = field(default_factory=list)
     learning_hooks: list[Any] = field(default_factory=list)
     responsible_action_space: JSONDict = field(default_factory=dict)
     salient_factors: list[JSONDict] = field(default_factory=list)
+    signal_epistemology: JSONDict = field(default_factory=dict)
     operational_intent: JSONDict = field(default_factory=dict)
     agent_operational_body: JSONDict = field(default_factory=dict)
     action_interpretation_layer: JSONDict = field(default_factory=dict)
+    safe_novelty_lane: JSONDict = field(default_factory=dict)
+    performative_contracts: list[JSONDict] = field(default_factory=list)
+    catastrophic_ceiling: JSONDict = field(default_factory=dict)
     model_selection: ModelSelection = field(default_factory=ModelSelection)
     raw: JSONDict = field(default_factory=dict)
     _reviews: Any = field(default=None, repr=False, compare=False)
@@ -180,11 +203,36 @@ class Decision:
         model_selection = ModelSelection.from_backend_response(raw)
         responsible_action_space = _normalize_action_space(raw.get("responsible_action_space"))
         salient_factors = [dict(item) for item in _as_list(raw.get("salient_factors")) if isinstance(item, dict)]
+        signal_epistemology = (
+            dict(raw.get("signal_epistemology"))
+            if isinstance(raw.get("signal_epistemology"), dict)
+            else {}
+        )
         operational_intent = dict(raw.get("operational_intent")) if isinstance(raw.get("operational_intent"), dict) else {}
         agent_operational_body = dict(raw.get("agent_operational_body")) if isinstance(raw.get("agent_operational_body"), dict) else {}
         action_interpretation_layer = (
             dict(raw.get("action_interpretation_layer"))
             if isinstance(raw.get("action_interpretation_layer"), dict)
+            else {}
+        )
+        safe_novelty_lane = (
+            dict(raw.get("safe_novelty_lane"))
+            if isinstance(raw.get("safe_novelty_lane"), dict)
+            else {}
+        )
+        performative_contracts = [
+            dict(item)
+            for item in _as_list(raw.get("performative_contracts"))
+            if isinstance(item, dict)
+        ]
+        catastrophic_ceiling = (
+            dict(raw.get("catastrophic_ceiling"))
+            if isinstance(raw.get("catastrophic_ceiling"), dict)
+            else {}
+        )
+        expected_regret_vector = (
+            dict(raw.get("expected_regret_vector"))
+            if isinstance(raw.get("expected_regret_vector"), dict)
             else {}
         )
 
@@ -230,14 +278,19 @@ class Decision:
             risk=_first_float(raw.get("risk"), raw.get("risk_score"), _nested(raw, "decision_runtime_spine", "decision", "risk_score")),
             confidence=confidence,
             expected_regret=expected_regret,
+            expected_regret_vector=expected_regret_vector,
             verification_plan=list(packet.verification_plan or _as_list(raw.get("verification_plan"))),
             obligations=list(packet.obligations or _as_list(raw.get("open_obligations") or raw.get("obligations"))),
             learning_hooks=list(packet.learning_hooks or _as_list(raw.get("learning_hooks"))),
             responsible_action_space=responsible_action_space,
             salient_factors=salient_factors,
+            signal_epistemology=signal_epistemology,
             operational_intent=operational_intent,
             agent_operational_body=agent_operational_body,
             action_interpretation_layer=action_interpretation_layer,
+            safe_novelty_lane=safe_novelty_lane,
+            performative_contracts=performative_contracts,
+            catastrophic_ceiling=catastrophic_ceiling,
             model_selection=model_selection,
             raw=raw,
             _reviews=attached_reviews,
@@ -329,14 +382,19 @@ class Decision:
             "risk": self.risk,
             "confidence": self.confidence,
             "expected_regret": self.expected_regret,
+            "expected_regret_vector": self.expected_regret_vector,
             "verification_plan": self.verification_plan,
             "obligations": self.obligations,
             "learning_hooks": self.learning_hooks,
             "responsible_action_space": self.responsible_action_space,
             "salient_factors": self.salient_factors,
+            "signal_epistemology": self.signal_epistemology,
             "operational_intent": self.operational_intent,
             "agent_operational_body": self.agent_operational_body,
             "action_interpretation_layer": self.action_interpretation_layer,
+            "safe_novelty_lane": self.safe_novelty_lane,
+            "performative_contracts": self.performative_contracts,
+            "catastrophic_ceiling": self.catastrophic_ceiling,
             "model_selection": self.model_selection.to_dict(),
         }
 
@@ -378,6 +436,23 @@ class Decision:
             action_family=_optional_str(self.action_interpretation_layer.get("action_family")),
             interpreted_action=_optional_str(self.action_interpretation_layer.get("interpreted_action")),
             intent_mismatch=_optional_bool(self.operational_intent.get("mismatch")),
+            signal_confidence_floor=_first_float(_nested(self.signal_epistemology, "summary", "min_confidence")),
+            conflicted_signal_count=int(_first_float(_nested(self.signal_epistemology, "summary", "conflicted_factors"), 0) or 0),
+            high_spoofability_signal_count=int(_first_float(_nested(self.signal_epistemology, "summary", "high_spoofability_factors"), 0) or 0),
+            safe_novelty_lane_status=_optional_str(self.safe_novelty_lane.get("status")),
+            safe_novelty_lane_mode=_optional_str(self.safe_novelty_lane.get("recommended_intervention_mode")),
+            safe_novelty_lane_eligible=_optional_bool(self.safe_novelty_lane.get("eligible")),
+            top_regret_dimensions=[
+                str(item)
+                for item in _as_list(self.expected_regret_vector.get("dominant_dimensions"))
+                if item not in (None, "")
+            ],
+            promise_types=_unique_strings([
+                item.get("promise_type")
+                for item in self.performative_contracts
+                if isinstance(item, dict)
+            ]),
+            catastrophic_ceiling_active=_optional_bool(self.catastrophic_ceiling.get("active")),
             warnings=[str(item) for item in warnings if item not in (None, "")],
         )
 
@@ -534,6 +609,20 @@ def _normalize_action_space(value: Any) -> JSONDict:
 
 def _action_items(value: Any) -> list[JSONDict]:
     return [dict(item) for item in _as_list(value) if isinstance(item, dict)]
+
+
+def _unique_strings(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        if value in (None, ""):
+            continue
+        item = str(value)
+        if item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
 
 
 def _nested(data: JSONDict, *path: str) -> Any:

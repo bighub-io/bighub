@@ -84,6 +84,19 @@ def _decision_payload() -> dict:
             "system": "okta",
             "environment": "production",
         },
+        "performative_contracts": [
+            {
+                "promise_id": "prm_test_revocation",
+                "promise_type": "revocation",
+                "content": "Revoke temporary privilege before expiry.",
+                "status": "open",
+            }
+        ],
+        "catastrophic_ceiling": {
+            "active": False,
+            "policy": "catastrophic_epoche_v1",
+            "non_learnable": True,
+        },
     }
 
 
@@ -98,6 +111,7 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert decision.risk == 0.68
     assert decision.confidence == 0.84
     assert decision.expected_regret == 0.31
+    assert decision.expected_regret_vector["dimensions"]["compliance"] == 0.31
     assert decision.can_run is False
     assert decision.needs_review is True
     assert decision.should_not_run is False
@@ -112,9 +126,13 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert decision.brain.world_state_used is True
     assert decision.responsible_action_space["constrained"]
     assert decision.salient_factors[0]["factor"] == "open_obligations"
+    assert decision.signal_epistemology["summary"]["conflicted_factors"] == 1
     assert decision.operational_intent["mismatch"] is True
     assert decision.agent_operational_body["can_touch"][0] == "okta"
     assert decision.action_interpretation_layer["action_family"] == "privilege_escalation"
+    assert decision.safe_novelty_lane["status"] == "review_only"
+    assert decision.performative_contracts[0]["promise_type"] == "revocation"
+    assert decision.catastrophic_ceiling["non_learnable"] is True
     assert decision.reason == payload["reason"]
 
     brief = decision.brief()
@@ -129,6 +147,15 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert brief.action_family == "privilege_escalation"
     assert brief.interpreted_action == payload["action_interpretation_layer"]["interpreted_action"]
     assert brief.intent_mismatch is True
+    assert brief.signal_confidence_floor == 0.38
+    assert brief.conflicted_signal_count == 1
+    assert brief.high_spoofability_signal_count == 1
+    assert brief.safe_novelty_lane_status == "review_only"
+    assert brief.safe_novelty_lane_mode == "review_required"
+    assert brief.safe_novelty_lane_eligible is False
+    assert brief.top_regret_dimensions == ["security", "compliance", "contractual"]
+    assert brief.promise_types == ["revocation", "audit_logging"]
+    assert brief.catastrophic_ceiling_active is False
     assert brief.to_dict()["recommendation"] == payload["decision_brain"]["recommendation"]
 
 

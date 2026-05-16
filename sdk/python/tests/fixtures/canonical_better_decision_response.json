@@ -16,6 +16,27 @@
   "risk": 0.68,
   "confidence": 0.84,
   "expected_regret": 0.31,
+  "expected_regret_vector": {
+    "schema_version": "regret_vector_v1",
+    "source": "decision_projection",
+    "scalar_regret": 0.31,
+    "dimensions": {
+      "compliance": 0.31,
+      "security": 0.248,
+      "contractual": 0.155,
+      "operational": 0.217
+    },
+    "moral_weighted_dimensions": {
+      "compliance": 0.403,
+      "security": 0.4464,
+      "contractual": 0.217,
+      "operational": 0.217
+    },
+    "moral_score": 0.1275,
+    "dominant_dimensions": ["security", "compliance", "contractual"],
+    "damage_bearers": ["customers"],
+    "reversibility": "high"
+  },
   "can_run": false,
   "needs_review": true,
   "needs_more_context": false,
@@ -127,20 +148,58 @@
       "factor": "open_obligations",
       "severity": "warn",
       "reason": "Open obligations constrain this decision.",
-      "evidence": {"count": 1}
+      "evidence": {"count": 1},
+      "epistemology": {
+        "schema_version": "signal_epistemology_v1",
+        "factor": "open_obligations",
+        "sources": [{"source": "open_obligations_repository", "source_type": "world_state"}],
+        "freshness": {"status": "unknown"},
+        "confidence": 0.58,
+        "spoofability": {"level": "medium"}
+      }
     },
     {
       "factor": "weak_verifier_coverage",
       "severity": "caution",
       "reason": "limited_evidence",
-      "evidence": {"code": "limited_evidence"}
+      "evidence": {"code": "limited_evidence"},
+      "epistemology": {
+        "schema_version": "signal_epistemology_v1",
+        "factor": "weak_verifier_coverage",
+        "sources": [{"source": "verification_plan", "source_type": "verifier", "signed_or_attested": true}],
+        "freshness": {"status": "unknown"},
+        "confidence": 0.5,
+        "spoofability": {"level": "low"}
+      }
     },
     {
       "factor": "high_blast_radius",
       "severity": "warn",
-      "reason": "Risk/blast-radius signals are elevated."
+      "reason": "Risk/blast-radius signals are elevated.",
+      "epistemology": {
+        "schema_version": "signal_epistemology_v1",
+        "factor": "high_blast_radius",
+        "sources": [{"source": "request_context", "source_type": "context"}],
+        "freshness": {"status": "unknown"},
+        "confidence": 0.38,
+        "spoofability": {"level": "high"},
+        "conflicts": [{"factor": "high_blast_radius", "reason": "sources_disagree"}]
+      }
     }
   ],
+  "signal_epistemology": {
+    "schema_version": "signal_epistemology_v1",
+    "summary": {
+      "factor_count": 3,
+      "stale_or_unknown_factors": 3,
+      "high_spoofability_factors": 1,
+      "conflicted_factors": 1,
+      "min_confidence": 0.38
+    },
+    "signals": [],
+    "conflicts": [{"factor": "high_blast_radius", "reason": "sources_disagree"}],
+    "warnings": ["high_blast_radius: source spoofability is high"]
+  },
   "operational_intent": {
     "declared": "better_decision",
     "inferred": "Grant the minimum necessary access on okta in production with reduced scope or safer execution",
@@ -169,5 +228,67 @@
     "system": "okta",
     "environment": "production",
     "confidence": 0.8
+  },
+  "safe_novelty_lane": {
+    "schema_version": "safe_novelty_lane_v1",
+    "active": true,
+    "eligible": false,
+    "status": "review_only",
+    "reason": "Expected regret exceeds the reserved exploration budget; require human review or smaller scope.",
+    "novelty_detected": true,
+    "irreversible_but_high_value_hypothesis": false,
+    "high_value_hypothesis": null,
+    "exploration_budget": {
+      "allowed_regret_budget": 0.15,
+      "estimated_regret_cost": 0.31,
+      "budget_remaining_after_lane": null
+    },
+    "recommended_intervention_mode": "review_required",
+    "conditions": {
+      "sandbox_required": false,
+      "shadow_or_dry_run_first": true,
+      "canary_required": false,
+      "blast_radius_cap": 0.05,
+      "human_approval_required_before_widening": true
+    },
+    "forbidden_escalations": ["skip_verification", "increase_scope_without_observation", "reuse_lane_after_failed_verifier"],
+    "evidence": {"confidence_zone": "novel", "risk_score": 0.68}
+  },
+  "performative_contracts": [
+    {
+      "promise_id": "prm_fixture_revocation",
+      "decision_id": "VAL_1010",
+      "promise_type": "revocation",
+      "promiser_agent": "agent",
+      "promisee": "okta",
+      "content": "Revoke temporary privilege or access before the approved boundary expires.",
+      "system": "okta",
+      "domain": "access_management",
+      "tool": "Grant temporary Okta admin access to users 1-9 for 48h",
+      "status": "open",
+      "evidence": {"action_family": "privilege_escalation"}
+    },
+    {
+      "promise_id": "prm_fixture_audit",
+      "decision_id": "VAL_1010",
+      "promise_type": "audit_logging",
+      "promiser_agent": "agent",
+      "promisee": "okta",
+      "content": "Preserve an auditable trail for the privilege change and its revocation.",
+      "system": "okta",
+      "domain": "access_management",
+      "verifier": "verify revocation",
+      "status": "open",
+      "evidence": {"action_family": "privilege_escalation"}
+    }
+  ],
+  "catastrophic_ceiling": {
+    "active": false,
+    "policy": "catastrophic_epoche_v1",
+    "non_learnable": true,
+    "forced_mode": "should_not_run",
+    "forced_recommendation": "do_not_proceed",
+    "triggers": [],
+    "evidence": {}
   }
 }

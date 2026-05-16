@@ -251,6 +251,79 @@ class ActionInterpretationLayerDict(TypedDict, total=False):
     evidence: JSONDict
 
 
+class PerformativeContractDict(TypedDict, total=False):
+    promise_id: str
+    org_id: str
+    decision_id: Optional[str]
+    intervention_id: Optional[str]
+    transition_id: Optional[str]
+    source_type: str
+    source_id: Optional[str]
+    promise_type: str
+    promiser_agent: str
+    promisee: Optional[str]
+    content: str
+    system: Optional[str]
+    domain: Optional[str]
+    tool: Optional[str]
+    verifier: Optional[str]
+    due_at: Optional[str]
+    expires_at: Optional[str]
+    status: str
+    breach_severity: Optional[str]
+    breach_reason: Optional[str]
+    evidence: JSONDict
+    created_at: Optional[str]
+    updated_at: Optional[str]
+
+
+class CatastrophicCeilingDict(TypedDict, total=False):
+    active: bool
+    policy: str
+    non_learnable: bool
+    forced_mode: str
+    forced_recommendation: str
+    reason: str
+    triggers: List[JSONDict]
+    evidence: JSONDict
+
+
+class RegretVectorDict(TypedDict, total=False):
+    schema_version: str
+    source: str
+    scalar_regret: float
+    dimensions: JSONDict
+    moral_weighted_dimensions: JSONDict
+    moral_score: float
+    dominant_dimensions: List[str]
+    damage_bearers: List[str]
+    reversibility: str
+
+
+class SignalEpistemologyDict(TypedDict, total=False):
+    schema_version: str
+    summary: JSONDict
+    signals: List[JSONDict]
+    conflicts: List[JSONDict]
+    warnings: List[str]
+
+
+class SafeNoveltyLaneDict(TypedDict, total=False):
+    schema_version: str
+    active: bool
+    eligible: bool
+    status: str
+    reason: str
+    novelty_detected: bool
+    irreversible_but_high_value_hypothesis: bool
+    high_value_hypothesis: Optional[str]
+    exploration_budget: JSONDict
+    recommended_intervention_mode: str
+    conditions: JSONDict
+    forbidden_escalations: List[str]
+    evidence: JSONDict
+
+
 class DisagreementMetricsResponse(TypedDict, total=False):
     org_id: str
     total_records: int
@@ -299,6 +372,14 @@ class LearningImpactReportResponse(TypedDict, total=False):
     avg_regret_when_bighub_changed_decision: Optional[float]
     avg_regret_when_baseline_path_followed: Optional[float]
     avg_regret_reduction: Optional[float]
+    promises_total: int
+    promises_kept: int
+    promises_breached: int
+    promise_keep_rate: Optional[float]
+    breaches_by_promise_type: JSONDict
+    regret_vector_summary: JSONDict
+    top_regret_dimensions: List[JSONDict]
+    regret_damage_bearers: JSONDict
     examples: List[JSONDict]
 
 
@@ -361,9 +442,14 @@ class ActionEvaluateResponse(TypedDict, total=False):
     # ── Responsible decision surface ─────────────────────────────────
     responsible_action_space: ResponsibleActionSpaceDict
     salient_factors: List[SalientFactorDict]
+    signal_epistemology: SignalEpistemologyDict
     operational_intent: OperationalIntentDict
     agent_operational_body: AgentOperationalBodyDict
     action_interpretation_layer: ActionInterpretationLayerDict
+    safe_novelty_lane: SafeNoveltyLaneDict
+    performative_contracts: List[PerformativeContractDict]
+    catastrophic_ceiling: CatastrophicCeilingDict
+    expected_regret_vector: RegretVectorDict
 
 
 ActionSubmitResponse = ActionEvaluateResponse

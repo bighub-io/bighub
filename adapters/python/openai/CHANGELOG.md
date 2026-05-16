@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b4] - 2026-05-16
+
+### Added
+
+- Propagated semantic decision views into OpenAI tool results and execution events: `operational_intent`, `agent_operational_body`, and `action_interpretation_layer`.
+
+### Changed
+
+- Aligned the core SDK dependency to `bighub>=0.1.0b4,<0.2.0`.
+- Documented semantic decision views as explanatory signals that do not override runtime gating.
+
 ## [0.1.0b3] - 2026-05-16
 
 ### Added

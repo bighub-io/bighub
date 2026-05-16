@@ -75,7 +75,7 @@ git push origin sdk-openai-vX.Y.Z
 - [ ] `src/bighub_openai/version.py` -> `"X.Y.Z"`
 - [ ] `pyproject.toml` -> `version = "X.Y.Z"`
 - [ ] `pyproject.toml` dependencies aligned:
-  - `bighub>=0.1.0b3,<0.2.0` for the current beta SDK line
+  - `bighub>=0.1.0b4,<0.2.0` for the current beta SDK line
   - `openai>=2.0.0,<3.0.0`
 - [ ] All tests pass (`pytest -q tests`)
 - [ ] Build succeeds:

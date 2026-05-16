@@ -219,6 +219,38 @@ class SalientFactorDict(TypedDict, total=False):
     evidence: Any
 
 
+class OperationalIntentDict(TypedDict, total=False):
+    declared: Optional[str]
+    inferred: Optional[str]
+    confidence: Optional[float]
+    mismatch: bool
+    mismatch_reasons: List[str]
+    action_family: Optional[str]
+    evidence: JSONDict
+
+
+class AgentOperationalBodyDict(TypedDict, total=False):
+    can_touch: List[str]
+    can_verify: List[str]
+    can_rollback: List[str]
+    cannot_observe: List[str]
+    requires_human: List[str]
+    evidence: JSONDict
+
+
+class ActionInterpretationLayerDict(TypedDict, total=False):
+    raw_action: str
+    interpreted_action: str
+    action_family: str
+    operational_meaning: str
+    risk_meaning: List[str]
+    domain: Optional[str]
+    system: Optional[str]
+    environment: Optional[str]
+    confidence: Optional[float]
+    evidence: JSONDict
+
+
 class DisagreementMetricsResponse(TypedDict, total=False):
     org_id: str
     total_records: int
@@ -329,6 +361,9 @@ class ActionEvaluateResponse(TypedDict, total=False):
     # ── Responsible decision surface ─────────────────────────────────
     responsible_action_space: ResponsibleActionSpaceDict
     salient_factors: List[SalientFactorDict]
+    operational_intent: OperationalIntentDict
+    agent_operational_body: AgentOperationalBodyDict
+    action_interpretation_layer: ActionInterpretationLayerDict
 
 
 ActionSubmitResponse = ActionEvaluateResponse

@@ -60,6 +60,30 @@ def _decision_payload() -> dict:
         "salient_factors": [
             {"factor": "open_obligations", "severity": "warn", "reason": "Access must be revoked."}
         ],
+        "operational_intent": {
+            "declared": "better_decision",
+            "inferred": "Grant the minimum necessary access on okta in production",
+            "confidence": 0.72,
+            "mismatch": False,
+            "mismatch_reasons": [],
+            "action_family": "privilege_escalation",
+        },
+        "agent_operational_body": {
+            "can_touch": ["okta", "access_management"],
+            "can_verify": ["Confirm entitlement after provisioning"],
+            "can_rollback": [],
+            "cannot_observe": [],
+            "requires_human": ["revoke_access"],
+        },
+        "action_interpretation_layer": {
+            "raw_action": "Grant temporary Okta admin access to users 1-9 for 48h",
+            "interpreted_action": "temporary privilege escalation in okta for production",
+            "action_family": "privilege_escalation",
+            "operational_meaning": "temporary privilege escalation in an identity or access system",
+            "risk_meaning": ["privilege_escalation", "compliance_risk"],
+            "system": "okta",
+            "environment": "production",
+        },
     }
 
 
@@ -88,6 +112,9 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert decision.brain.world_state_used is True
     assert decision.responsible_action_space["constrained"]
     assert decision.salient_factors[0]["factor"] == "open_obligations"
+    assert decision.operational_intent["mismatch"] is True
+    assert decision.agent_operational_body["can_touch"][0] == "okta"
+    assert decision.action_interpretation_layer["action_family"] == "privilege_escalation"
     assert decision.reason == payload["reason"]
 
     brief = decision.brief()
@@ -99,6 +126,9 @@ def test_sdk_maps_canonical_backend_better_decision_contract() -> None:
     assert brief.world_state_used is True
     assert brief.salient_factors == ["open_obligations", "weak_verifier_coverage", "high_blast_radius"]
     assert brief.action_space_counts["constrained"] == 2
+    assert brief.action_family == "privilege_escalation"
+    assert brief.interpreted_action == payload["action_interpretation_layer"]["interpreted_action"]
+    assert brief.intent_mismatch is True
     assert brief.to_dict()["recommendation"] == payload["decision_brain"]["recommendation"]
 
 
@@ -134,7 +164,11 @@ def test_bighub_decide_returns_decision_object() -> None:
     assert decision.packet.packet_sha256_is_local is True
     assert decision.brain.precedent_count == 7
     assert decision.responsible_action_space["constrained"][0]["action"] == "Grant scoped Okta admin access for 48h"
+    assert decision.operational_intent["declared"] == "better_decision"
+    assert decision.agent_operational_body["can_touch"] == ["okta", "access_management"]
+    assert decision.action_interpretation_layer["interpreted_action"] == "temporary privilege escalation in okta for production"
     assert decision.brief().salient_factors == ["open_obligations"]
+    assert decision.brief().intent_mismatch is False
     bighub.close()
 
 

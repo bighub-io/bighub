@@ -37,7 +37,7 @@ Requires Python 3.9+.
 
 Dependencies:
 
-- `bighub>=0.1.0b3,<0.2.0`
+- `bighub>=0.1.0b4,<0.2.0`
 - `openai>=2.0.0,<3.0.0`
 
 ---
@@ -146,6 +146,24 @@ Representative shape from `run()`:
             "reason": "Production admin access has broad impact."
           }
         ],
+        "operational_intent": {
+          "declared": "Grant Alice temporary Okta admin access for 48h",
+          "inferred": "Grant the minimum necessary access in production",
+          "confidence": 0.72,
+          "mismatch": true
+        },
+        "agent_operational_body": {
+          "can_touch": ["okta"],
+          "can_verify": ["verify access grant"],
+          "can_rollback": [],
+          "cannot_observe": [],
+          "requires_human": ["human_review"]
+        },
+        "action_interpretation_layer": {
+          "raw_action": "Grant Alice admin for 48h",
+          "interpreted_action": "temporary privilege escalation in production identity system",
+          "action_family": "privilege_escalation"
+        },
         "decision_packet": {...},
         "decision_brain": {...}
       },
@@ -173,10 +191,23 @@ The adapter returns the full raw BIGHUB decision under `last["decision"]`. When 
 | `reason` | Human-readable reason when provided |
 | `responsible_action_space` | Responsible action options grouped as `available`, `constrained`, `forbidden`, and `information_gathering` when returned by BIGHUB |
 | `salient_factors` | Decision-time factors BIGHUB identified as important for this tool call, such as high blast radius, weak verifier coverage, unavailable rollback, active incident, or open obligations |
+| `operational_intent` | Declared and inferred operational intent for the proposed tool call |
+| `agent_operational_body` | What the agent can touch, verify, rollback, cannot observe, or must escalate |
+| `action_interpretation_layer` | Interpreted operational meaning of the raw tool call |
 | `decision_packet` | Structured context used for the decision |
 | `decision_brain` | DecisionBrain reasoning summary and related signals |
 
-`responsible_action_space` and `salient_factors` are explanatory decision signals. They do not override runtime gating. Execution is still controlled by `mode`, `can_run`, `needs_review`, `should_not_run`, `recommendation`, `allowed`, and `requires_approval`.
+`responsible_action_space`, `salient_factors`, `operational_intent`, `agent_operational_body`, and `action_interpretation_layer` are explanatory decision signals. They do not override runtime gating. Execution is still controlled by `mode`, `can_run`, `needs_review`, `should_not_run`, `recommendation`, `allowed`, and `requires_approval`.
+
+### Semantic decision views
+
+When available, BIGHUB also returns semantic views of the proposed action:
+
+- `operational_intent`: declared and inferred operational intent
+- `agent_operational_body`: what the agent can touch, verify, rollback, or cannot observe
+- `action_interpretation_layer`: interpreted operational meaning of the raw action
+
+These fields are explanatory and additive. Execution remains controlled by `mode`, `can_run`, `needs_review`, `should_not_run`, and related gating fields.
 
 ### Execution statuses
 

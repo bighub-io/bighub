@@ -91,6 +91,9 @@ class DecisionBrief:
     obligations: int = 0
     salient_factors: list[str] = field(default_factory=list)
     action_space_counts: dict[str, int] = field(default_factory=dict)
+    action_family: Optional[str] = None
+    interpreted_action: Optional[str] = None
+    intent_mismatch: Optional[bool] = None
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> JSONDict:
@@ -116,6 +119,9 @@ class DecisionBrief:
             "obligations": self.obligations,
             "salient_factors": self.salient_factors,
             "action_space_counts": self.action_space_counts,
+            "action_family": self.action_family,
+            "interpreted_action": self.interpreted_action,
+            "intent_mismatch": self.intent_mismatch,
             "warnings": self.warnings,
         }
 
@@ -146,6 +152,9 @@ class Decision:
     learning_hooks: list[Any] = field(default_factory=list)
     responsible_action_space: JSONDict = field(default_factory=dict)
     salient_factors: list[JSONDict] = field(default_factory=list)
+    operational_intent: JSONDict = field(default_factory=dict)
+    agent_operational_body: JSONDict = field(default_factory=dict)
+    action_interpretation_layer: JSONDict = field(default_factory=dict)
     model_selection: ModelSelection = field(default_factory=ModelSelection)
     raw: JSONDict = field(default_factory=dict)
     _reviews: Any = field(default=None, repr=False, compare=False)
@@ -171,6 +180,13 @@ class Decision:
         model_selection = ModelSelection.from_backend_response(raw)
         responsible_action_space = _normalize_action_space(raw.get("responsible_action_space"))
         salient_factors = [dict(item) for item in _as_list(raw.get("salient_factors")) if isinstance(item, dict)]
+        operational_intent = dict(raw.get("operational_intent")) if isinstance(raw.get("operational_intent"), dict) else {}
+        agent_operational_body = dict(raw.get("agent_operational_body")) if isinstance(raw.get("agent_operational_body"), dict) else {}
+        action_interpretation_layer = (
+            dict(raw.get("action_interpretation_layer"))
+            if isinstance(raw.get("action_interpretation_layer"), dict)
+            else {}
+        )
 
         request_id = _optional_str(raw.get("request_id") or raw.get("validation_id") or raw.get("id"))
         resolved_proposed_action = _optional_str(
@@ -219,6 +235,9 @@ class Decision:
             learning_hooks=list(packet.learning_hooks or _as_list(raw.get("learning_hooks"))),
             responsible_action_space=responsible_action_space,
             salient_factors=salient_factors,
+            operational_intent=operational_intent,
+            agent_operational_body=agent_operational_body,
+            action_interpretation_layer=action_interpretation_layer,
             model_selection=model_selection,
             raw=raw,
             _reviews=attached_reviews,
@@ -315,6 +334,9 @@ class Decision:
             "learning_hooks": self.learning_hooks,
             "responsible_action_space": self.responsible_action_space,
             "salient_factors": self.salient_factors,
+            "operational_intent": self.operational_intent,
+            "agent_operational_body": self.agent_operational_body,
+            "action_interpretation_layer": self.action_interpretation_layer,
             "model_selection": self.model_selection.to_dict(),
         }
 
@@ -353,6 +375,9 @@ class Decision:
                 key: len(value) if isinstance(value, list) else 0
                 for key, value in self.responsible_action_space.items()
             },
+            action_family=_optional_str(self.action_interpretation_layer.get("action_family")),
+            interpreted_action=_optional_str(self.action_interpretation_layer.get("interpreted_action")),
+            intent_mismatch=_optional_bool(self.operational_intent.get("mismatch")),
             warnings=[str(item) for item in warnings if item not in (None, "")],
         )
 

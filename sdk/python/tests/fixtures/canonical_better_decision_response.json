@@ -140,5 +140,34 @@
       "severity": "warn",
       "reason": "Risk/blast-radius signals are elevated."
     }
-  ]
+  ],
+  "operational_intent": {
+    "declared": "better_decision",
+    "inferred": "Grant the minimum necessary access on okta in production with reduced scope or safer execution",
+    "confidence": 0.68,
+    "mismatch": true,
+    "mismatch_reasons": [
+      "declared_intent_understates_risk",
+      "safer_alternative_changes_operational_intent"
+    ],
+    "action_family": "privilege_escalation"
+  },
+  "agent_operational_body": {
+    "can_touch": ["okta", "access_management"],
+    "can_verify": ["verify grant", "verify MFA", "verify revocation"],
+    "can_rollback": [],
+    "cannot_observe": [],
+    "requires_human": ["human_review", "revoke_access"]
+  },
+  "action_interpretation_layer": {
+    "raw_action": "Grant temporary Okta admin access to users 1-9 for 48h",
+    "interpreted_action": "temporary privilege escalation in an identity or access system in okta for production with privilege escalation, compliance risk, production environment",
+    "action_family": "privilege_escalation",
+    "operational_meaning": "temporary privilege escalation in an identity or access system",
+    "risk_meaning": ["privilege_escalation", "compliance_risk", "production_environment", "system:okta"],
+    "domain": "access_management",
+    "system": "okta",
+    "environment": "production",
+    "confidence": 0.8
+  }
 }

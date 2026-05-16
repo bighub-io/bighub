@@ -1512,6 +1512,24 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
                 "salient_factors": [
                     {"factor": "weak_verifier_coverage", "severity": "warn", "reason": "No verifier attached."}
                 ],
+                "operational_intent": {
+                    "declared": "refund_payment",
+                    "inferred": "Resolve the financial/customer action with controlled loss risk",
+                    "confidence": 0.72,
+                    "mismatch": False,
+                },
+                "agent_operational_body": {
+                    "can_touch": ["payments"],
+                    "can_verify": [],
+                    "can_rollback": [],
+                    "cannot_observe": ["fraud_context"],
+                    "requires_human": [],
+                },
+                "action_interpretation_layer": {
+                    "raw_action": "refund_payment",
+                    "interpreted_action": "financial/customer transaction with loss or fraud exposure",
+                    "action_family": "financial_action",
+                },
             }
 
     fake_bighub = FakeBighubClient()
@@ -1529,6 +1547,9 @@ def test_openai_adapter_uses_modern_decisions_raw_when_available() -> None:
     assert response["execution"]["last"]["decision"]["request_id"] == "req_modern_1"
     assert response["execution"]["last"]["responsible_action_space"]["available"][0]["action"] == "refund_payment"
     assert response["execution"]["last"]["salient_factors"][0]["factor"] == "weak_verifier_coverage"
+    assert response["execution"]["last"]["operational_intent"]["mismatch"] is False
+    assert response["execution"]["last"]["agent_operational_body"]["can_touch"] == ["payments"]
+    assert response["execution"]["last"]["action_interpretation_layer"]["action_family"] == "financial_action"
     assert fake_bighub.decisions.calls[0]["context"]["objective"] == "better_decision"
 
 

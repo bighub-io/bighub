@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 No unreleased entries at this time.
 
+## [0.1.0b4] - 2026-05-16
+
+### Added
+
+- Exposed semantic decision views on `Decision` and typed evaluate responses: `operational_intent`, `agent_operational_body`, and `action_interpretation_layer`.
+- Added compact `DecisionBrief` accessors for `action_family`, `interpreted_action`, and `intent_mismatch`.
+
+### Changed
+
+- Documented semantic decision views as explanatory, additive signals separate from runtime gating.
+
 ## [0.1.0b3] - 2026-05-16
 
 ### Added

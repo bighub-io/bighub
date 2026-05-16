@@ -76,6 +76,9 @@ class ToolResult:
     decision_packet: Optional[Dict[str, Any]] = None
     responsible_action_space: Optional[Dict[str, Any]] = None
     salient_factors: Optional[List[Dict[str, Any]]] = None
+    operational_intent: Optional[Dict[str, Any]] = None
+    agent_operational_body: Optional[Dict[str, Any]] = None
+    action_interpretation_layer: Optional[Dict[str, Any]] = None
 
 
 GuardedToolResult = ToolResult
@@ -103,6 +106,9 @@ class ToolExecutionEvent:
     decision_packet: Optional[Dict[str, Any]] = None
     responsible_action_space: Optional[Dict[str, Any]] = None
     salient_factors: Optional[List[Dict[str, Any]]] = None
+    operational_intent: Optional[Dict[str, Any]] = None
+    agent_operational_body: Optional[Dict[str, Any]] = None
+    action_interpretation_layer: Optional[Dict[str, Any]] = None
 
 
 class BighubOpenAI:
@@ -829,6 +835,12 @@ class BighubOpenAI:
             result.responsible_action_space = decision["responsible_action_space"]
         if isinstance(decision.get("salient_factors"), list):
             result.salient_factors = [item for item in decision["salient_factors"] if isinstance(item, dict)]
+        if isinstance(decision.get("operational_intent"), dict):
+            result.operational_intent = decision["operational_intent"]
+        if isinstance(decision.get("agent_operational_body"), dict):
+            result.agent_operational_body = decision["agent_operational_body"]
+        if isinstance(decision.get("action_interpretation_layer"), dict):
+            result.action_interpretation_layer = decision["action_interpretation_layer"]
         advisory = decision.get("decision_intelligence") or {}
         fallback = decision.get("intelligence") or {}
         result.trajectory_health = advisory.get("trajectory_health") or fallback.get("trajectory_health")
@@ -921,6 +933,9 @@ class BighubOpenAI:
             decision_packet=result.decision_packet,
             responsible_action_space=result.responsible_action_space,
             salient_factors=result.salient_factors,
+            operational_intent=result.operational_intent,
+            agent_operational_body=result.agent_operational_body,
+            action_interpretation_layer=result.action_interpretation_layer,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 
@@ -1850,6 +1865,9 @@ class AsyncBighubOpenAI(BighubOpenAI):
             decision_packet=result.decision_packet,
             responsible_action_space=result.responsible_action_space,
             salient_factors=result.salient_factors,
+            operational_intent=result.operational_intent,
+            agent_operational_body=result.agent_operational_body,
+            action_interpretation_layer=result.action_interpretation_layer,
         )
         return self._function_output(call_id=call["call_id"], output=result.__dict__), event
 

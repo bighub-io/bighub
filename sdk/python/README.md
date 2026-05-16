@@ -107,6 +107,9 @@ High-value fields most workflows care about:
 - `selected_model`: present only when the backend actually selected one
 - `responsible_action_space`: the responsible action space for the current situation, grouped into `available`, `constrained`, `forbidden`, and `information_gathering` actions
 - `salient_factors`: the most important decision-time factors BIGHUB identified, such as weak verifier coverage, unavailable rollback, open obligations, active incidents, irreversibility, or high blast radius
+- `operational_intent`: declared and inferred operational intent for the proposed action
+- `agent_operational_body`: what the agent can touch, verify, rollback, cannot observe, or must escalate
+- `action_interpretation_layer`: the interpreted operational meaning of the raw action
 
 For a smaller stable surface, use `decision.brief()`:
 
@@ -115,6 +118,8 @@ brief = decision.brief()
 
 print(brief.salient_factors)
 print(brief.action_space_counts)
+print(brief.action_family)
+print(brief.intent_mismatch)
 
 if brief.can_run:
     run(brief.recommended_action)
@@ -123,6 +128,16 @@ elif brief.needs_review:
 ```
 
 `decision.brief()` keeps this compact: it exposes salient factor names and action-space counts, while the full `Decision` object keeps the detailed `responsible_action_space` and `salient_factors` payloads.
+
+### Semantic decision views
+
+When available, BIGHUB also returns semantic views of the proposed action:
+
+- `operational_intent`: declared and inferred operational intent
+- `agent_operational_body`: what the agent can touch, verify, rollback, or cannot observe
+- `action_interpretation_layer`: interpreted operational meaning of the raw action
+
+These fields are explanatory and additive. Execution remains controlled by `mode`, `can_run`, `needs_review`, `should_not_run`, and related gating fields.
 
 ---
 

@@ -277,4 +277,4 @@ For existing integrations, legacy `BighubClient`, `client.actions.submit(...)`, 
 
 ## License
 
-MIT
+Apache-2.0

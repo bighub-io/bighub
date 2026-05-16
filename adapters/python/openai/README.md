@@ -391,4 +391,4 @@ Compatibility aliases remain available:
 
 ## License
 
-MIT
+Apache-2.0
